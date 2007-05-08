@@ -3,8 +3,8 @@
 
 require 'htmlshrinker-data'
 
-class HTMLShrinker             
-  def initialize(basedir)   
+class HTMLExpander
+  def initialize(basedir, template)   
     js = %w(skins/common/wikibits.js skins/htmldump/md5.js skins/htmldump/utf8.js skins/htmldump/lookup.js raw/gen.js)
     css = %w(raw/MediaWiki~Common.css raw/MediaWiki~Monobook.css raw/gen.css skins/htmldump/main.css skins/monobook/main.css)
     @jstext, @csstext = '', ''
@@ -16,8 +16,20 @@ class HTMLShrinker
     @jstext = @jstext.gsub(/\/\*(.*?)\*\//m, '').gsub(/\/\/(.*?)$/, '') # rm comments
     @csstext.gsub!(/\/\*(.*?)\*\//m, '')
     @csstext.gsub!('@import "../monobook/main.css";', '') # we already included this
+
+    @before, @after = template.split(20.chr)
   end
 
+  def uncompress(text)
+    title, text = text.split("\n", 2)
+    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
+    #.gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
+    result = @before + text + @after
+    return strip_whitespace(result)
+  end
+end
+
+class HTMLShrinker             
   def compress(text)
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
     text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
@@ -26,49 +38,17 @@ class HTMLShrinker
     text.gsub!(/<img src=(.*?)>/, "")
     return [title, text].join("\n")
   end
-
-  def uncompress(text)
-    title, text = text.split("\n", 2)
-    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
-    result = HTMLShrinker_data::Start.gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext) + text + HTMLShrinker_data::Ending
-    return strip_whitespace(result)
+  
+  # takes an example html file, extracts the top and bottom, does some replacements
+  # - this can later be stored and handed to HTMLShrinker at initialization
+  def create_template(text)
+    before = Regexp::last_match.pre_match if text.match(/<\! -- start content -->/)
+    after = Regexp::last_match.post_match if text.match(/<\!-- end content -->/)       
+    return [before, after].join(20.chr)
   end
-                                          
-  def compress_file(filename)
-    puts "Compressing #{filename}"
-    text = File.read(filename)
-    File.open(filename + ".shrunk", "w") {|f| f.write(compress(text)) } 
-  end
-
-  def uncompress_file(filename)
-    puts "Uncompressing #{filename}"
-    text = File.read(filename)
-    File.open(filename[0..-(".shrunk".size+1)], "w") {|f| f.write(uncompress(text)) } 
-  end
-
-  def try(filename)
-    puts "Creating #{filename}.try.html"
-    text = File.read(filename)
-    File.open(filename + ".try.html", "w") {|f| f.write(uncompress(compress(text))) } 
-  end  
-
+                                         
   private
   def strip_whitespace(txt)
     return txt.gsub(/\t/, " ").gsub('  ',' ').gsub("\n", '') 
   end
-  
-end
-
-if __FILE__ == $0
-  shrink = HTMLShrinker.new(File.join(File.dirname(ARGV[1]),"../../.."))
-  p File.join(File.dirname(ARGV[1]),"../../..")           
- 
-  case ARGV.shift
-    when 'compress'
-      ARGV.each {|file| shrink.compress_file(file)}
-    when 'uncompress'
-      ARGV.each {|file| shrink.uncompress_file(file)}   
-    when 'try'
-      ARGV.each {|file| shrink.try(file)}
-  end                    
 end

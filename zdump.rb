@@ -12,8 +12,6 @@ end
 def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
-          
-HTMLSHRINKER = HTMLShrinker.new(ARGV[1])
 
 class Webpage    
   attr_reader :text, :compressed, :size, :compressed_size, :filename, :index_content, :block, :buflocation
@@ -27,23 +25,6 @@ class Webpage
     @buflocation = buflocation
   end
                     
-  def empty!
-    @text = ''
-    @index_content = ''
-  end
-  
-  def index_content
-    content = ""
-    case @filename
-      when /.txt$/i
-        content = @text
-
-      when /.htm$|.html$/i        # get the file, strip all <> tags
-        content = @text.gsub(/\<head>.*?\<\/head>/im,"").gsub(/\<.*?\>/m, " ")
-    end
-    return content.strip
-  end    
-end
             
 class Block                         
   attr_reader :number, :start, :size
@@ -53,6 +34,7 @@ class Block
     @size = size
   end
 end
+       
                                                    
 index = []             
 block_ary = []
@@ -60,6 +42,8 @@ cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
 location = 4 # (to hold start of index)
 
 name = (ARGV[1] ? ARGV[1] : "default")
+
+HTMLSHRINKER = HTMLShrinker.new
             
 t = Time.now
 puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}.zindex and directory #{name}.zferret."
@@ -67,6 +51,9 @@ zdump = File.open("#{name}.zdump", "w")
 zdump.seek(location)
 
 ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
+
+template = HTMLSHRINKER.extract_template(File.read(ARGV[2]))       
+
 
 Find.find(ARGV[0]) do |newfile|
   next if File.directory?(newfile) || !File.readable?(newfile)
