@@ -13,7 +13,6 @@ def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
           
-#ZFERRET = Ferret::Index::Index.new(:path => "#{ARGV[1]}.zferret")
 HTMLSHRINKER = HTMLShrinker.new(ARGV[1])
 
 class Webpage    
