@@ -25,10 +25,3 @@ class SimpleHandler < Mongrel::HttpHandler
 end 
 
 
-h = Mongrel::HttpServer.new("0.0.0.0", "2042")
-h.register("/", SimpleHandler.new)
-h.register("/raw", Mongrel::DirHandler.new("raw"))
-h.register("/skins", Mongrel::DirHandler.new("skins"))
-
-puts "Webserver started, serving at http://localhost:2042/"
-h.run.join
