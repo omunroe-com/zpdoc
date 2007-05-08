@@ -27,8 +27,8 @@ class SimpleHandler < Mongrel::HttpHandler
     else
       txt = Archive.get_article(url)
       resp.write txt.nil? ? "Sorry, article not found" : Htmlshrink.uncompress(txt)
-      
     end
+    puts "Got #{url} in #{"%2.3f" % (Time.now - t)} seconds."
   end
 end 
 

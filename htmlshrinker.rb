@@ -32,7 +32,7 @@ class HTMLExpander
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
     #.gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
     result = @before + text + @after
-    return strip_whitespace(result)
+    return ZUtil::strip_whitespace(result)
   end
 end
 
@@ -41,7 +41,7 @@ class HTMLShrinker
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
     text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
-    strip_whitespace(text)
+    ZUtil::strip_whitespace(text)
     text.gsub!(/<img src=(.*?)>/, "")
     return [title, text].join("\n")
   end
@@ -55,6 +55,3 @@ class HTMLShrinker
   end
 end
 
-def strip_whitespace(txt)
-  return txt.gsub(/\t/, " ").gsub('  ',' ').gsub("\n", '') 
-end
