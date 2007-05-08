@@ -84,30 +84,20 @@ block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
 location += bf_compr.size                             
 
 # writing start of index
-zdump.writeloc([location].pack('V'), 0)
+zdump.writeloc([location].pack('V'), 0)                      
 puts "location #{location}"
 puts "Finished, writing index. #{Time.now - t}"
            
-pages = {}
-index.each do |file|
-  pages[file.filename] = {:block_start => block_ary[file.block].start,
-                          :block_size => block_ary[file.block].size,
-                          :start => file.buflocation,
-                          :size => file.size}         
-end
 subindex = []                        
-
-puts "Sorted onetime. #{Time.now - t}"
-pages.each_pair do |x, y| 
-  md5 = MD5.md5(x).hexdigest
-  entry = pack(md5, y[:block_start], y[:block_size], y[:start], y[:size])
-  firstfour = md5subset(md5)
-
-  subindex[firstfour] = "" if subindex[firstfour].nil?
+index.each do |file| 
+  md5 = Digest::MD5.hexdigest( file.filename )
+  firstfour = md5subset( md5 )
+  entry = pack(md5, block_ary[file.block].start, block_ary[file.block].size, file.buflocation, file.size)
+  subindex[firstfour] ||= "" 
   subindex[firstfour] << entry
 end
 
-puts "Sorted another time. #{Time.now - t}"
+puts "Sorted one time. #{Time.now - t}"        
 indexloc = location
 location = (65535*8) + indexloc
 
