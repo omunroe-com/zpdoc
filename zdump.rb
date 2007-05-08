@@ -25,12 +25,39 @@ if ARGV.size == 0
   exit(0)
 end
           
+class Index
+  def initialize
+    @index = []
+    @entry = Struct.new(:filename, :block, :buflocation, :size, :md5)
+  end
+     
+  def add(*args)
+     entry = @entry.new(*args)
+     md5 = Digest::MD5.hexdigest( entry.filename )
+     entry.md5 = Digest::MD5.digest( entry.filename )
+     firstfour = md5subset( md5 )
+     @index[firstfour] ||= []
+     @index[firstfour] << entry
+  end
+                             
+  def each_entry_with_index(block_ary)
+    @index.each_with_index do |hash, idx|
+      next if hash.nil?
+      entry = ''  
+      p hash
+      hash.each {|x| entry << pack(x.md5, block_ary[x.block].start, block_ary[x.block].size, x.buflocation, x.size) }
+      yield entry, idx  
+    end
+  end
+end
+      
+      
+          
 shrinker = HTMLShrinker.new
 
-Webpage = Struct.new(:filename, :block, :buflocation, :size) 
 Block = Struct.new(:number, :start, :size, :pages)                         
                                                    
-index = []             
+index = Index.new         
 block_ary = []
 cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
 location = 4 # (to hold start of index)
@@ -45,7 +72,7 @@ zdump.seek(location)
 #ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
 ignore = /only ignore strange files/                  
 template = shrinker.extract_template(File.read(ARGV[2]))
-index << Webpage.new("__Zdump_Template__", 0, 0, template.size)
+index.add "__Zdump_Template__", 0, 0, template.size
 buffer << template
 buflocation += template.size  
 
@@ -60,7 +87,9 @@ Find.find(ARGV[0]) do |newfile|
   text = shrinker.compress(File.read(newfile))
   buffer << text
 
-  index << Webpage.new(newfile, cur_block, buflocation, text.size)
+  md5 = Digest::MD5.hexdigest( newfile )
+  firstfour = md5subset( md5 )
+  index.add(newfile, cur_block, buflocation, text.size)
 
   buflocation += text.size
   
@@ -88,28 +117,19 @@ zdump.writeloc([location].pack('V'), 0)
 puts "location #{location}"
 puts "Finished, writing index. #{Time.now - t}"
            
-subindex = []                        
-index.each do |file| 
-  md5 = Digest::MD5.hexdigest( file.filename )
-  firstfour = md5subset( md5 )
-  entry = pack(md5, block_ary[file.block].start, block_ary[file.block].size, file.buflocation, file.size)
-  subindex[firstfour] ||= "" 
-  subindex[firstfour] << entry
-end
-
-puts "Sorted one time. #{Time.now - t}"        
 indexloc = location
 location = (65535*8) + indexloc
 
-# p = File.open(ARGV[1] + ".zlog","w")
-subindex.each_with_index do |entry, idx|
+p = File.open(ARGV[1] + ".zlog","w")
+index.each_entry_with_index(block_ary) do |entry, idx|
   next if entry.nil?  
+
   zdump.writeloc([location, entry.size].pack('V2'), (idx * 8) + indexloc)
   zdump.writeloc(entry, location)
 
-   # p << "*" * 80 << "\n" 
-   # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
-   # p << unpack(entry).join(":") << "\n"
+   p << "*" * 80 << "\n" 
+   p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
+   p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
