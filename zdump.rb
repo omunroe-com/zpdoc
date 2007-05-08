@@ -33,9 +33,8 @@ class Index
      
   def add(*args)
      entry = @entry.new(*args)
-     md5 = Digest::MD5.hexdigest( entry.filename )
-     entry.md5 = Digest::MD5.digest( entry.filename )
-     firstfour = md5subset( md5 )
+     entry.md5 = Digest::MD5.hexdigest( entry.filename )
+     firstfour = md5subset( entry.md5 )
      @index[firstfour] ||= []
      @index[firstfour] << entry
   end
