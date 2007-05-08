@@ -12,8 +12,14 @@ end
 def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
-          
-#ZFERRET = Ferret::Index::Index.new(:path => "#{ARGV[1]}.zferret")
+                               
+class IO
+  def writeloc(text, offset)
+    self.seek offset
+    self.write text
+  end
+end
+                                                 
 HTMLSHRINKER = HTMLShrinker.new(ARGV[1])
 
 class Webpage    
@@ -24,7 +30,6 @@ class Webpage
     @block = block
     @text = HTMLSHRINKER.compress(File.read(filename))
     @size = @text.size
-#    @index_content = index_content           
     @buflocation = buflocation
   end
                     
@@ -32,39 +37,21 @@ class Webpage
     @text = ''
     @index_content = ''
   end
-  
-  def index_content
-    content = ""
-    case @filename
-      when /.txt$/i
-        content = @text
-
-      when /.htm$|.html$/i        # get the file, strip all <> tags
-        content = @text.gsub(/\<head>.*?\<\/head>/im,"").gsub(/\<.*?\>/m, " ")
-    end
-    return content.strip
-  end    
 end
             
-class Block                         
-  attr_reader :number, :start, :size
-  def initialize(number, start, size)  
-    @number = number
-    @start = start
-    @size = size
-  end
-end
+Block = Struct.new(:number, :start, :size, :pages)                         
                                                    
 index = []             
-block_ary = []
-cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
+block_ary = []  
+uncompr_size, compr_size, cur_block, counter, buflocation, size = *[0] * 6
+buffer = ''
 location = 4 # (to hold start of index)
 
 name = (ARGV[1] ? ARGV[1] : "default")
             
 t = Time.now
-puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}.zindex and directory #{name}.zferret."
-zdump = File.open("#{name}.zdump", "w")
+puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}"
+zdump = File.open("#{name}", "w")
 zdump.seek(location)
 
 ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
@@ -72,28 +59,29 @@ ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)
 Find.find(ARGV[0]) do |newfile|
   next if File.directory?(newfile) || !File.readable?(newfile)
   next if newfile =~ ignore
-  wf = Webpage.new(newfile, cur_block, buflocation)
-  puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
 
-  buffer << wf.text
+  counter += 1                  
+  if counter.to_i / 1000.0 == counter / 1000                                                               
+    puts "#{counter} files indexed in #{Time.now - t}, average #{counter.to_f / (Time.now - t)} files per second. #{uncompr_size} data compressed to #{compr_size}, compression ratio #{compr_size.to_f / uncompr_size.to_f}." 
+  end
+
+  wf = Webpage.new(newfile, cur_block, buflocation)
   buflocation += wf.text.size
   wf.empty!
-  counter += 1                  
   index << wf
-  next if buffer.size < 900000
+  next if buffer.size < 900000    
 
-  bf_compr = ZCompress::compress(buffer)
+  bf_compr = ZCompress.compress(buffer)
+  compr_size += bf_compr.size
   zdump.write(bf_compr)
   block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
   buffer = ''       
+  uncompr_size += buflocation
   buflocation = 0
   cur_block += 1                                           
   location += bf_compr.size
   puts "Writing block no #{cur_block}"
        
-#  ZFERRET << {:filename => wf.filename, :content => wf.index_content, :offset => location, :size => wf.compressed_size } 
-#  location += wf.compressed_size
- 
 end        
 
 # to ensure last part of buffer is written
@@ -103,46 +91,30 @@ block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
 location += bf_compr.size                             
 
 # writing start of index
-zdump.seek(0)          
-zdump.write([location].pack('V'))                      
+zdump.writeloc([location].pack('V'), 0)                      
 puts "location #{location}"
 puts "Finished, writing index. #{Time.now - t}"
            
-pages = {}
-index.each do |file|
-  pages[file.filename] = {:block_start => block_ary[file.block].start,
-                          :block_size => block_ary[file.block].size,
-                          :start => file.buflocation,
-                          :size => file.size}         
-end
 subindex = []                        
-
-puts "Sorted onetime. #{Time.now - t}"
-pages.each_pair do |x, y| 
-  md5 = MD5.md5(x).hexdigest
-  entry = pack(md5, y[:block_start], y[:block_size], y[:start], y[:size])
-  firstfour = md5subset(md5)
-  subindex[firstfour] = "" if subindex[firstfour].nil?
+index.each_pair do |file| 
+  md5 = Digest::MD5.hexdigest( file.filename )
+  firstfour = md5subset( md5 )
+  entry = pack(md5, block_ary[file.block].start, block_ary[file.block].size, file.buflocation, file.size)
+  subindex[firstfour] ||= "" 
   subindex[firstfour] << entry
 end
 
-puts "Sorted another time. #{Time.now - t}"
+puts "Sorted one time. #{Time.now - t}"        
+
 indexloc = location
-location = (65535*8) + indexloc
- p = File.open(name + ".zlog",'w')
+subidxloc = (65535*8) + indexloc    # 65535 = 0xFFFF
+
 subindex.each_with_index do |entry, idx|
   next if entry.nil?  
-  zdump.seek((idx*8) + indexloc)                   
-  zdump.print([location, entry.size].pack('V2'))
-  zdump.seek(location)
-  zdump.print(entry)         
-
-   p << "*" * 80 << "\n" 
-   p << "seek #{(idx*8) + location} location #{location} size #{entry.size}" << "\n"
-   p << unpack(entry).join(":") << "\n"
-
-  location += entry.size
+  zdump.writeloc( [location, entry.size].pack('V2'), (idx * 8) + indexloc )                   
+  zdump.writeloc(entry, subidxloc)
+  subidxloc += entry.size
 end
-puts "Finished. #{Time.now - t}"
+
 zdump.close
-# p.close
+puts "Finished. #{Time.now - t}"
