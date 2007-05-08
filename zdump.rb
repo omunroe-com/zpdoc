@@ -12,60 +12,48 @@ end
 def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
-
-class Webpage    
-  attr_reader :text, :compressed, :size, :compressed_size, :filename, :index_content, :block, :buflocation
-  
-  def initialize(filename, block, buflocation)
-    @filename = filename                                                                    
-    @block = block
-    @text = HTMLSHRINKER.compress(File.read(filename))
-    @size = @text.size
-#    @index_content = index_content           
-    @buflocation = buflocation
-  end
-                    
-            
-class Block                         
-  attr_reader :number, :start, :size
-  def initialize(number, start, size)  
-    @number = number
-    @start = start
-    @size = size
-  end
+                     
+if ARGV.size == 0  
+  puts "Usage: ruby zdump.rb <directory> <output file> <template file>"
 end
-       
+          
+shrinker = HTMLShrinker.new
+
+Webpage = Struct.new(:filename, :block, :buflocation, :size) 
+Block = Struct.new(:number, :start, :size, :pages)                         
                                                    
 index = []             
 block_ary = []
 cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
 location = 4 # (to hold start of index)
 
-name = (ARGV[1] ? ARGV[1] : "default")
-
-HTMLSHRINKER = HTMLShrinker.new
+name = ARGV[1] 
             
 t = Time.now
-puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}.zindex and directory #{name}.zferret."
-zdump = File.open("#{name}.zdump", "w")
+puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}"
+zdump = File.open("#{name}", "w")
 zdump.seek(location)
 
-ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
-
-template = HTMLSHRINKER.extract_template(File.read(ARGV[2]))       
-
+#ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
+ignore = /only ignore strange files/                  
+template = shrinker.extract_template(File.read(ARGV[2]))
+index << Webpage.new("__Zdump_Template__", 0, 0, template.size)
+buffer << template
+buflocation += template.size  
 
 Find.find(ARGV[0]) do |newfile|
   next if File.directory?(newfile) || !File.readable?(newfile)
   next if newfile =~ ignore
-  wf = Webpage.new(newfile, cur_block, buflocation)
-  puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
 
-  buffer << wf.text
-  buflocation += wf.text.size
-  wf.empty!
   counter += 1                  
-  index << wf
+  puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
+  text = shrinker.compress(File.read(newfile))
+  buffer << text
+
+  index << Webpage.new(newfile, cur_block, buflocation, text.size)
+
+  buflocation += text.size
+  
   next if buffer.size < 900000
 
   bf_compr = ZCompress::compress(buffer)
@@ -77,9 +65,6 @@ Find.find(ARGV[0]) do |newfile|
   location += bf_compr.size
   puts "Writing block no #{cur_block}"
        
-#  ZFERRET << {:filename => wf.filename, :content => wf.index_content, :offset => location, :size => wf.compressed_size } 
-#  location += wf.compressed_size
- 
 end        
 
 # to ensure last part of buffer is written
@@ -108,23 +93,30 @@ pages.each_pair do |x, y|
   md5 = MD5.md5(x).hexdigest
   entry = pack(md5, y[:block_start], y[:block_size], y[:start], y[:size])
   firstfour = md5subset(md5)
+
   subindex[firstfour] = "" if subindex[firstfour].nil?
   subindex[firstfour] << entry
+  if x == '__Zdump_Template__'
+    puts y
+    p firstfour
+    puts md5
+  end
 end
 
 puts "Sorted another time. #{Time.now - t}"
 indexloc = location
 location = (65535*8) + indexloc
- p = File.open(name + ".zlog",'w')
+
+p = File.open(ARGV[1] + ".zlog","w")
 subindex.each_with_index do |entry, idx|
   next if entry.nil?  
-  zdump.seek((idx*8) + indexloc)                   
+  zdump.seek((idx * 8) + indexloc)                   
   zdump.print([location, entry.size].pack('V2'))
   zdump.seek(location)
   zdump.print(entry)         
 
    p << "*" * 80 << "\n" 
-   p << "seek #{(idx*8) + location} location #{location} size #{entry.size}" << "\n"
+   p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
    p << unpack(entry).join(":") << "\n"
 
   location += entry.size

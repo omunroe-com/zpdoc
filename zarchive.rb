@@ -9,6 +9,7 @@
 # puts ZArchive.get_article('eo/o/s/l/Oslo.html')
 
 require 'zcompress'
+require 'digest'
 
 class String
   def pop(number = 1)
@@ -43,7 +44,6 @@ class ZArchive
     md5 = Digest::MD5.hexdigest(url)
     firstfour = sprintf("%d", ("0x" + md5[0..3]) ).to_i
     loc = (firstfour * 8) + @zdump_loc
-
     start, size = @zdump.readloc(8, loc).unpack('V2')
     idx = @zdump.readloc(size, start)
     hex, *coordinates = idx.pop(32).unpack('H32V4') until ( hex == md5 || idx.empty? )

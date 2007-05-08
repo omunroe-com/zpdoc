@@ -4,20 +4,27 @@
 require 'htmlshrinker-data'
 
 class HTMLExpander
-  def initialize(basedir, template)   
-    js = %w(skins/common/wikibits.js skins/htmldump/md5.js skins/htmldump/utf8.js skins/htmldump/lookup.js raw/gen.js)
-    css = %w(raw/MediaWiki~Common.css raw/MediaWiki~Monobook.css raw/gen.css skins/htmldump/main.css skins/monobook/main.css)
-    @jstext, @csstext = '', ''
-    cssbegin, cssend = '<style type="text/css">', '</style>' 
-    jsbegin, jsend = '<script type="text/javascript">', '</script>'
-    js.each {|f| @jstext << jsbegin << File.read(File.join(basedir, f)) << jsend if File.exists?(File.join(basedir, f)) }
-    css.each {|f| @csstext << cssbegin << File.read(File.join(basedir, f)) << cssend if File.exists?(File.join(basedir, f)) }
+  def initialize(template, archive, basedir)   
+    file = [%w(skins/common/wikibits.js skins/htmldump/md5.js skins/htmldump/utf8.js skins/htmldump/lookup.js raw/gen.js) , %w(raw/MediaWiki~Common.css raw/MediaWiki~Monobook.css raw/gen.css skins/htmldump/main.css skins/monobook/main.css)]
+    jscss = ['', '']
+    pretext = ['<style type="text/css">', '<script type="text/javascript">']
+    posttext = ['style', 'script']
+
+    # (0..1).each do |no|
+    #   file[no].each do |f|
+    #     txt = archive.get_article(File.join(basedir, f))
+    #     puts File.join(basedir,f), txt.size
+    #     jscss[no] << pretext[no] << txt << posttext[no] unless txt.nil?  
+    #   end
+    # end
+    @jstext, @csstext = *jscss
     @jstext.gsub!(/var ScriptSuffix(.*?)$/,'')   # includes <script> tag - messes up
     @jstext = @jstext.gsub(/\/\*(.*?)\*\//m, '').gsub(/\/\/(.*?)$/, '') # rm comments
     @csstext.gsub!(/\/\*(.*?)\*\//m, '')
     @csstext.gsub!('@import "../monobook/main.css";', '') # we already included this
-
     @before, @after = template.split(20.chr)
+#    @before = @before.gsub("raw", "/raw").gsub("./", "/")
+#    @before.gsub!(HTMLShrinker_data::To_be_replaced, @jstext + @csstext)
   end
 
   def uncompress(text)
@@ -41,14 +48,13 @@ class HTMLShrinker
   
   # takes an example html file, extracts the top and bottom, does some replacements
   # - this can later be stored and handed to HTMLShrinker at initialization
-  def create_template(text)
-    before = Regexp::last_match.pre_match if text.match(/<\! -- start content -->/)
+  def extract_template(text)
+    before = Regexp::last_match.pre_match if text.match(/<\!-- start content -->/)
     after = Regexp::last_match.post_match if text.match(/<\!-- end content -->/)       
     return [before, after].join(20.chr)
   end
-                                         
-  private
-  def strip_whitespace(txt)
-    return txt.gsub(/\t/, " ").gsub('  ',' ').gsub("\n", '') 
-  end
+end
+
+def strip_whitespace(txt)
+  return txt.gsub(/\t/, " ").gsub('  ',' ').gsub("\n", '') 
 end
