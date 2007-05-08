@@ -19,62 +19,83 @@ class IO
     self.write text
   end
 end
-                     
-if ARGV.size == 0  
-  puts "Usage: ruby zdump.rb <directory> <output file> <template file>"
-  exit(0)
-end
-          
+                               
 class Index
-  def initialize
-    @index = []
+  attr_reader :location
+
+  def initialize(file)
+    @index = []   
+    @file = file
     @entry = Struct.new(:filename, :block, :buflocation, :size, :md5)
+    @cur_block, @buflocation, @size = *[0] * 4
+    @buffer = ''
+    @location = 4 # (to hold start of index)
+    @block_ary = []
   end
      
-  def add(*args)
-     entry = @entry.new(*args)
+  def add(text, *args)
+     entry = @entry.new(*args)    
+     entry.buflocation = @buflocation
+     entry.block = @cur_block                    
+     entry.size = text.size
      entry.md5 = Digest::MD5.hexdigest( entry.filename )
      firstfour = md5subset( entry.md5 )
      @index[firstfour] ||= []
      @index[firstfour] << entry
+     
+     @buffer << text
+     @buflocation += text.size
+
+     write_block if @buffer.size > 900000
   end
                              
-  def each_entry_with_index(block_ary)
+  def each_entry_with_index
     @index.each_with_index do |hash, idx|
       next if hash.nil?
       entry = ''  
-      p hash
-      hash.each {|x| entry << pack(x.md5, block_ary[x.block].start, block_ary[x.block].size, x.buflocation, x.size) }
+      hash.each {|x| entry << pack(x.md5, @block_ary[x.block].start, @block_ary[x.block].size, x.buflocation, x.size) }
       yield entry, idx  
     end
+  end                  
+  
+  def flush
+    write_block
+  end
+
+  private
+  def write_block
+    bf_compr = ZCompress::compress(@buffer)
+    @file.write(bf_compr)
+    @block_ary[@cur_block] = Block.new(@cur_block, @location, bf_compr.size)
+    @buffer = ''       
+    @buflocation = 0
+    @cur_block += 1                                           
+    @location += bf_compr.size
+    puts "Writing block no #{@cur_block}"
   end
 end
-      
-      
           
-shrinker = HTMLShrinker.new
+if ARGV.size == 0  
+  puts "Usage: ruby zdump.rb <directory> <output file> <template file>"
+  exit(0)
+end
 
+shrinker = HTMLShrinker.new
 Block = Struct.new(:number, :start, :size, :pages)                         
-                                                   
-index = Index.new         
-block_ary = []
-cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
-location = 4 # (to hold start of index)
 
 name = ARGV[1] 
             
 t = Time.now
 puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}"
 zdump = File.open("#{name}", "w")
-zdump.seek(location)
+index = Index.new(zdump)        
 
-#ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
-ignore = /only ignore strange files/                  
+ignore = ARGV[3] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
+
 template = shrinker.extract_template(File.read(ARGV[2]))
-index.add "__Zdump_Template__", 0, 0, template.size
-buffer << template
-buflocation += template.size  
+index.add template, "__Zdump_Template__", 0, 0, template.size
 
+counter = 0
 Find.find(ARGV[0]) do |newfile|
   next if File.directory?(newfile) || !File.readable?(newfile)
   next if newfile =~ ignore
@@ -82,36 +103,16 @@ Find.find(ARGV[0]) do |newfile|
   counter += 1                  
   if counter.to_i / 500.0 == counter / 500                                                             
     puts "#{counter} files indexed in #{Time.now - t}, average #{counter.to_f / (Time.now - t)} files per second. #{uncompr_size} data compressed to #{compr_size}, compression ratio #{compr_size.to_f / uncompr_size.to_f}." 
-  end
-  text = shrinker.compress(File.read(newfile))
-  buffer << text
-
-  md5 = Digest::MD5.hexdigest( newfile )
-  firstfour = md5subset( md5 )
-  index.add(newfile, cur_block, buflocation, text.size)
-
-  buflocation += text.size
+  end             
   
-  next if buffer.size < 900000
-
-  bf_compr = ZCompress::compress(buffer)
-  zdump.write(bf_compr)
-  block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
-  buffer = ''       
-  buflocation = 0
-  cur_block += 1                                           
-  location += bf_compr.size
-  puts "Writing block no #{cur_block}"
-       
+  text = shrinker.compress(File.read(newfile))
+  index.add(text, newfile)
 end        
 
-# to ensure last part of buffer is written
-bf_compr = ZCompress::compress(buffer)
-zdump.write(bf_compr)
-block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
-location += bf_compr.size                             
+index.flush # to make sure all blocks have been written
 
 # writing start of index
+location = index.location
 zdump.writeloc([location].pack('V'), 0)                      
 puts "location #{location}"
 puts "Finished, writing index. #{Time.now - t}"
@@ -120,7 +121,7 @@ indexloc = location
 location = (65535*8) + indexloc
 
 p = File.open(ARGV[1] + ".zlog","w")
-index.each_entry_with_index(block_ary) do |entry, idx|
+index.each_entry_with_index do |entry, idx|
   next if entry.nil?  
 
   zdump.writeloc([location, entry.size].pack('V2'), (idx * 8) + indexloc)
