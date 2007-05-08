@@ -12,9 +12,17 @@ end
 def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
+                 
+class IO
+  def writeloc(text, offset)
+    self.seek offset
+    self.write text
+  end
+end
                      
 if ARGV.size == 0  
   puts "Usage: ruby zdump.rb <directory> <output file> <template file>"
+  exit(0)
 end
           
 shrinker = HTMLShrinker.new
@@ -46,7 +54,9 @@ Find.find(ARGV[0]) do |newfile|
   next if newfile =~ ignore
 
   counter += 1                  
-  puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
+  if counter.to_i / 500.0 == counter / 500                                                             
+    puts "#{counter} files indexed in #{Time.now - t}, average #{counter.to_f / (Time.now - t)} files per second. #{uncompr_size} data compressed to #{compr_size}, compression ratio #{compr_size.to_f / uncompr_size.to_f}." 
+  end
   text = shrinker.compress(File.read(newfile))
   buffer << text
 
@@ -74,8 +84,7 @@ block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
 location += bf_compr.size                             
 
 # writing start of index
-zdump.seek(0)          
-zdump.write([location].pack('V'))                      
+zdump.writeloc([location].pack('V'), 0)
 puts "location #{location}"
 puts "Finished, writing index. #{Time.now - t}"
            
@@ -96,28 +105,21 @@ pages.each_pair do |x, y|
 
   subindex[firstfour] = "" if subindex[firstfour].nil?
   subindex[firstfour] << entry
-  if x == '__Zdump_Template__'
-    puts y
-    p firstfour
-    puts md5
-  end
 end
 
 puts "Sorted another time. #{Time.now - t}"
 indexloc = location
 location = (65535*8) + indexloc
 
-p = File.open(ARGV[1] + ".zlog","w")
+# p = File.open(ARGV[1] + ".zlog","w")
 subindex.each_with_index do |entry, idx|
   next if entry.nil?  
-  zdump.seek((idx * 8) + indexloc)                   
-  zdump.print([location, entry.size].pack('V2'))
-  zdump.seek(location)
-  zdump.print(entry)         
+  zdump.writeloc([location, entry.size].pack('V2'), (idx * 8) + indexloc)
+  zdump.writeloc(entry, location)
 
-   p << "*" * 80 << "\n" 
-   p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
-   p << unpack(entry).join(":") << "\n"
+   # p << "*" * 80 << "\n" 
+   # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
+   # p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
