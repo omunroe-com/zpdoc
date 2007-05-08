@@ -59,13 +59,13 @@ class Index
   end                  
   
   def flush
-    write_block
+    write_block unless @buffer.empty?
   end
 
   private
   def write_block
     bf_compr = ZCompress::compress(@buffer)
-    @file.write(bf_compr)
+    @file.writeloc(bf_compr, @location)
     @block_ary[@cur_block] = Block.new(@cur_block, @location, bf_compr.size)
     @buffer = ''       
     @buflocation = 0
@@ -102,7 +102,7 @@ Find.find(ARGV[0]) do |newfile|
 
   counter += 1                  
   if counter.to_i / 500.0 == counter / 500                                                             
-    puts "#{counter} files indexed in #{Time.now - t}, average #{counter.to_f / (Time.now - t)} files per second. #{uncompr_size} data compressed to #{compr_size}, compression ratio #{compr_size.to_f / uncompr_size.to_f}." 
+    puts "#{counter} files indexed in #{Time.now - t}, average #{@counter.to_f / (Time.now - t).to_f} files per second." 
   end             
   
   text = shrinker.compress(File.read(newfile))
@@ -114,22 +114,22 @@ index.flush # to make sure all blocks have been written
 # writing start of index
 location = index.location
 zdump.writeloc([location].pack('V'), 0)                      
-puts "location #{location}"
+puts "Size of archive without index #{location}."
 puts "Finished, writing index. #{Time.now - t}"
            
 indexloc = location
 location = (65535*8) + indexloc
 
-p = File.open(ARGV[1] + ".zlog","w")
+# p = File.open(ARGV[1] + ".zlog","w")
 index.each_entry_with_index do |entry, idx|
   next if entry.nil?  
 
   zdump.writeloc([location, entry.size].pack('V2'), (idx * 8) + indexloc)
   zdump.writeloc(entry, location)
 
-   p << "*" * 80 << "\n" 
-   p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
-   p << unpack(entry).join(":") << "\n"
+   # p << "*" * 80 << "\n" 
+   # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
+   # p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
