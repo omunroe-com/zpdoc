@@ -1,5 +1,6 @@
 #!/usr/bin/ruby
 %w(md5 zcompress find htmlshrinker zcompress zutil).each {|x| require x}
+include ZUtil                              
 
 class Index
   attr_reader :location
@@ -20,7 +21,7 @@ class Index
      entry.block = @cur_block                    
      entry.size = text.size
      entry.md5 = Digest::MD5.hexdigest( entry.filename )
-     firstfour = ZUtil::md5subset( entry.md5 )
+     firstfour = md5subset( entry.md5 )
      @index[firstfour] ||= []
      @index[firstfour] << entry
      
@@ -34,7 +35,7 @@ class Index
     @index.each_with_index do |hash, idx|
       next if hash.nil?
       entry = ''  
-      hash.each {|x| entry << ZUtil::pack(x.md5, @block_ary[x.block].start, @block_ary[x.block].size, x.buflocation, x.size) }
+      hash.each {|x| entry << pack(x.md5, @block_ary[x.block].start, @block_ary[x.block].size, x.buflocation, x.size) }
       yield entry, idx  
     end
   end                  
@@ -46,7 +47,7 @@ class Index
   private
   def write_block
     bf_compr = ZCompress::compress(@buffer)
-    ZUtil::writeloc(@file, bf_compr, @location)
+    writeloc(@file, bf_compr, @location)
     @block_ary[@cur_block] = Block.new(@cur_block, @location, bf_compr.size)
     @buffer = ''       
     @buflocation = 0
@@ -94,7 +95,7 @@ index.flush # to make sure all blocks have been written
 
 # writing start of index
 location = index.location
-ZUtil::writeloc(zdump, [location].pack('V'), 0)                      
+writeloc(zdump, [location].pack('V'), 0)                      
 puts "Size of archive without index #{location}."
 puts "Finished, writing index. #{Time.now - t}"
            
@@ -105,12 +106,12 @@ location = (65535*8) + indexloc
 index.each_entry_with_index do |entry, idx|
   next if entry.nil?  
 
-  ZUtil::writeloc(zdump, [location, entry.size].pack('V2'), (idx * 8) + indexloc)
-  ZUtil::writeloc(zdump, entry, location)
+  writeloc(zdump, [location, entry.size].pack('V2'), (idx * 8) + indexloc)
+  writeloc(zdump, entry, location)
 
    # p << "*" * 80 << "\n" 
    # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
-   # p << ZUtil::unpack(entry).join(":") << "\n"
+   # p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
