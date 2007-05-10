@@ -19,7 +19,7 @@ class Index
      entry.buflocation = @buflocation
      entry.block = @cur_block                    
      entry.size = text.size
-     entry.md5 = Digest::MD5.hexdigest( entry.filename )
+     entry.md5 = MD5::md5( entry.filename ).hexdigest
      firstfour = ZUtil::md5subset( entry.md5 )
      @index[firstfour] ||= []
      @index[firstfour] << entry
@@ -71,7 +71,7 @@ puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}"
 zdump = File.open("#{name}", "w")
 index = Index.new(zdump)        
 
-ignore = ARGV[3] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
+ignore = ARGV[3] ? Regexp.new(ARGV[2]) : /(Bild~|Benutzer)/ 
 
 template = shrinker.extract_template(File.read(ARGV[2]))
 index.add template, "__Zdump_Template__", 0, 0, template.size
@@ -83,7 +83,7 @@ Find.find(ARGV[0]) do |newfile|
 
   counter += 1                  
   if counter.to_i / 500.0 == counter / 500                                                             
-    puts "#{counter} files indexed in #{Time.now - t}, average #{@counter.to_f / (Time.now - t).to_f} files per second." 
+    puts "#{counter} files indexed in #{"%.2f" % (Time.now - t)}, average #{"%.2f" % (counter.to_f / (Time.now - t).to_f)} files per second." 
   end             
   
   text = shrinker.compress(File.read(newfile))

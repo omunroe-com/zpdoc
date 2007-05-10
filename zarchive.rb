@@ -8,9 +8,7 @@
 # archive = ZArchive.new('eo.zdump')
 # puts ZArchive.get_article('eo/o/s/l/Oslo.html')
 
-require 'zcompress'
-require 'digest'
-require 'zutil'
+%w(md5 zcompress zutil).each {|x| require x} 
 
 class ZArchive               
   def initialize(file)
@@ -29,7 +27,7 @@ class ZArchive
   end
     
   def get_location(url)
-    md5 = Digest::MD5.hexdigest(url)
+    md5 = MD5.md5(url).hexdigest
     firstfour = sprintf("%d", ("0x" + md5[0..3]) ).to_i
     loc = (firstfour * 8) + @zdump_loc
     start, size = ZUtil::readloc(@zdump, 8, loc).unpack('V2')
