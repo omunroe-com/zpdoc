@@ -1,5 +1,8 @@
 #!/usr/bin/ruby
-# program to replace commonly used <HTML> to shrink size of page
+# Program to replace commonly used html, extract out top and bottom parts
+# of pages, which are roughly similar, and recompose them in the other end
+# By Stian Haklev (shaklev@gmail.com), 2007
+# Released under MIT and GPL licenses
 
 require 'htmlshrinker-data'
 

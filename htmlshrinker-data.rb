@@ -1,3 +1,7 @@
+# Part of the zip-doc suite
+# By Stian Haklev (shaklev@gmail.com), 2007
+# Released under MIT and GPL licenses
+
 module HTMLShrinker_data
   Replacements = {
     '<a href="../../../'  => 2.chr,

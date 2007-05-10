@@ -1,4 +1,10 @@
 #!/usr/bin/ruby
+# Program that packs a directory tree into a zdump file.
+# By Stian Haklev (shaklev@gmail.com), 2007
+# Released under MIT and GPL licenses
+#
+# Usage: ruby zdump.rb <directory> <output file> <template file>
+
 %w(md5 zcompress find htmlshrinker zcompress zutil).each {|x| require x}
 include ZUtil                              
 
