@@ -19,21 +19,30 @@ Archive = ZArchive.new(ARGV[0])
 template = Archive.get_article('__Zdump_Template__')
 Basename = ARGV[1].nil? ? '' : ARGV[1]
 Htmlshrink = HTMLExpander.new(template, Archive, Basename)
+Cache = {}
 class SimpleHandler < Mongrel::HttpHandler
   def process(req, resp)
     t = Time.now                                    
     url = url_unescape(req.params['PATH_INFO'][1..-1])
-#    return if url =~ /(jpg|png|gif)$/
     url = "#{Basename}index.html" if url.empty?
     url = Basename + url unless url[0..(Basename.size-1)] == Basename 
     
     # if style/js
     if url.match(/(raw|skins|images)\/(.*?)$/)
       url = Basename + Regexp::last_match[0]
-      resp.write Archive.get_article(url)
+      if Cache[url]
+        text = Cache[url]
+      else
+        text = Archive.get_article(url)
+        return if text.nil? 
+        line1, line2 = text.split("\n",2) 
+        text = line2 if line1 == 'Unnamed'
+        Cache[url] = text
+      end
+      resp.write text
     else
       txt = Archive.get_article(url)
-      resp.write txt.nil? ? "Sorry, article not found" : Htmlshrink.uncompress(txt)
+      resp.write txt.nil? ? "Sorry, article #{url} not found" : Htmlshrink.uncompress(txt)
     end
     puts "Got #{url} in #{"%2.3f" % (Time.now - t)} seconds."
   end
@@ -42,8 +51,6 @@ end
 
 h = Mongrel::HttpServer.new("0.0.0.0", "2042")
 h.register("/", SimpleHandler.new)
-h.register("/raw", Mongrel::DirHandler.new("raw"))
-h.register("/skins", Mongrel::DirHandler.new("skins"))
 
 puts "Webserver started, serving at http://localhost:2042/"
 h.run.join

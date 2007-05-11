@@ -11,7 +11,7 @@
 
 class ZArchive               
   def initialize(file)
-    @file = file
+    @file = file             
   end
 
   def get_article(url)
@@ -19,7 +19,7 @@ class ZArchive
 
     zindex_loc = zdump.read(4).unpack('V')[0]
     loc = get_location(url, zdump, zindex_loc)
-    return loc ? get_text(url, zdump, *loc) : nil
+    return loc ? get_text(zdump, *loc) : nil
   end
 
   private
@@ -27,11 +27,9 @@ class ZArchive
     text_compr = ZUtil::readloc( zdump, block_size, block_offset )
     text_uncompr = ZCompress.uncompress( text_compr )
     return text_uncompr[offset, size]
-    end
   end
     
   def get_location(url, zdump, zindex_loc)
-    puts "Getting #{url}"
     md5 = MD5::md5(url).hexdigest 
 
     # converts the first four characters of the hex md5 digest into an integer
