@@ -11,37 +11,38 @@
 
 class ZArchive               
   def initialize(file)
-    @zdump = File.open(file, 'r')
-
-    # the index is located after the dunp file, and the location is given by the
-    # first four bytes of the file
-    @zindex_loc = @zdump.read(4).unpack('V')[0]
+    @file = file
   end
 
-  def get_article(url)      
-    loc = get_location(url)
-    return loc ? get_text(*loc) : nil
+  def get_article(url)
+    zdump = File.open(@file, 'r')
+
+    zindex_loc = zdump.read(4).unpack('V')[0]
+    loc = get_location(url, zdump, zindex_loc)
+    return loc ? get_text(url, zdump, *loc) : nil
   end
 
   private
-  def get_text(block_offset, block_size, offset, size)
-    text_compr = ZUtil::readloc( @zdump, block_size, block_offset )
+  def get_text(zdump, block_offset, block_size, offset, size)
+    text_compr = ZUtil::readloc( zdump, block_size, block_offset )
     text_uncompr = ZCompress.uncompress( text_compr )
     return text_uncompr[offset, size]
+    end
   end
     
-  def get_location(url)
+  def get_location(url, zdump, zindex_loc)
+    puts "Getting #{url}"
     md5 = MD5::md5(url).hexdigest 
 
     # converts the first four characters of the hex md5 digest into an integer
     firstfour = sprintf("%d", ("0x" + md5[0..3]) ).to_i                       
     
     # uses this number to calculate the location of the metaindex entry
-    loc = (firstfour * 8) + @zindex_loc                            
+    loc = (firstfour * 8) + zindex_loc                            
     
     # finds the location of the index entry
-    start, size = ZUtil::readloc(@zdump, 8, loc).unpack('V2')
-    idx = ZUtil::readloc(@zdump, size, start)
+    start, size = ZUtil::readloc(zdump, 8, loc).unpack('V2')
+    idx = ZUtil::readloc(zdump, size, start)
 
     # the index consists of a number of 32 byte entries. it sorts through
     #until it finds the right one.
@@ -49,3 +50,12 @@ class ZArchive
     return coordinates if hex == md5
   end
 end                     
+# 4
+# 408809
+# 651125
+# 16312      
+# 4:408809:647229:3896:id/raw/MediaWiki~Monobook.css
+# Got id/raw/MediaWiki~Monobook.css in 0.540 seconds.
+# 4:408809:651125:16312:id/raw/MediaWiki~Common.css
+# Got id/raw/MediaWiki~Common.css in 0.773 seconds.
+# 4:408809:692714:115:id/raw/gen.css
