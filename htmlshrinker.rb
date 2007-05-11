@@ -42,6 +42,9 @@ end
 
 class HTMLShrinker             
   def compress(text)
+    if text =~ /\<meta http-equiv=\"Refresh\" content=\"0\;url=(.*?)\" \/\>/
+      return "#R #{Regexp::last_match[1].gsub('../', '')}"
+    end
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
     text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
