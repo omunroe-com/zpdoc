@@ -17,19 +17,17 @@ end
 
 Archive = ZArchive.new(ARGV[0])
 template = Archive.get_article('__Zdump_Template__')
-Basename = ARGV[1].nil? ? '' : ARGV[1]
 Htmlshrink = HTMLExpander.new(template, Archive, Basename)
 Cache = {}
 class SimpleHandler < Mongrel::HttpHandler
   def process(req, resp)
     t = Time.now                                    
     url = url_unescape(req.params['PATH_INFO'][1..-1])
-    url = "#{Basename}index.html" if url.empty?
-    url = Basename + url unless url[0..(Basename.size-1)] == Basename 
+    url = "index.html" if url.empty?
     
     # if style/js
     if url.match(/(raw|skins|images)\/(.*?)$/)
-      url = Basename + Regexp::last_match[0]
+      url = Regexp::last_match[0]
       if Cache[url]
         text = Cache[url]
       else
