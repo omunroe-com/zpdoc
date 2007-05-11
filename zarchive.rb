@@ -48,12 +48,3 @@ class ZArchive
     return coordinates if hex == md5
   end
 end                     
-# 4
-# 408809
-# 651125
-# 16312      
-# 4:408809:647229:3896:id/raw/MediaWiki~Monobook.css
-# Got id/raw/MediaWiki~Monobook.css in 0.540 seconds.
-# 4:408809:651125:16312:id/raw/MediaWiki~Common.css
-# Got id/raw/MediaWiki~Common.css in 0.773 seconds.
-# 4:408809:692714:115:id/raw/gen.css
