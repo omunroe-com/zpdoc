@@ -7,9 +7,7 @@
 # archive = ZArchive.new('eo.zdump')
 # puts ZArchive.get_article('eo/o/s/l/Oslo.html')
 
-require 'zcompress'
-require 'digest'
-require 'zutil'
+%w(md5 zcompress zutil).each {|x| require x} 
 
 class ZArchive               
   def initialize(file)
@@ -33,7 +31,7 @@ class ZArchive
   end
     
   def get_location(url)
-    md5 = Digest::MD5.hexdigest(url) 
+    md5 = MD5::md5(url).hexdigest 
 
     # converts the first four characters of the hex md5 digest into an integer
     firstfour = sprintf("%d", ("0x" + md5[0..3]) ).to_i                       
