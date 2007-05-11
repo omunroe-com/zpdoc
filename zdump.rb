@@ -20,23 +20,24 @@ class Index
     @location = 4 # (to hold start of index)
     @block_ary = []
   end
-     
-  def add(text, *args)
-     entry = @entry.new(*args)    
-     entry.buflocation = @buflocation
-     entry.block = @cur_block                    
-     entry.size = text.size
-     entry.md5 = MD5::md5( entry.filename ).hexdigest
-     firstfour = md5subset( entry.md5 )
-     @index[firstfour] ||= []
-     @index[firstfour] << entry
-     
-     @buffer << text
-     @buflocation += text.size
 
-     write_block if @buffer.size > 900000
+  def add(text, *args)
+
+    entry = @entry.new(*args)    
+    entry.buflocation = @buflocation
+    entry.block = @cur_block                    
+    entry.size = text.size
+    entry.md5 = MD5::md5( entry.filename ).hexdigest
+    firstfour = md5subset( entry.md5 )
+    @index[firstfour] ||= []
+    @index[firstfour] << entry
+
+    @buffer << text
+    @buflocation += text.size
+
+    write_block if @buffer.size > 900000
   end
-                             
+
   def each_entry_with_index
     @index.each_with_index do |hash, idx|
       next if hash.nil?
@@ -45,7 +46,7 @@ class Index
       yield entry, idx  
     end
   end                  
-  
+
   def flush
     write_block unless @buffer.empty?
   end
@@ -62,7 +63,7 @@ class Index
     puts "Writing block no #{@cur_block}"
   end
 end
-          
+
 if ARGV.size == 0  
   puts "Usage: ruby zdump.rb <directory> <output file> <template file>"
   exit(0)
@@ -72,7 +73,7 @@ shrinker = HTMLShrinker.new
 Block = Struct.new(:number, :start, :size, :pages)                         
 
 name = ARGV[1] 
-            
+
 t = Time.now
 puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}"
 zdump = File.open("#{name}", "w")
@@ -92,7 +93,7 @@ Find.find(ARGV[0]) do |newfile|
   if counter.to_i / 500.0 == counter / 500                                                             
     puts "#{counter} files indexed in #{"%.2f" % (Time.now - t)}, average #{"%.2f" % (counter.to_f / (Time.now - t).to_f)} files per second." 
   end             
-  
+
   text = shrinker.compress(File.read(newfile))
   index.add(text, newfile)
 end        
@@ -104,7 +105,7 @@ location = index.location
 writeloc(zdump, [location].pack('V'), 0)                      
 puts "Size of archive without index #{location}."
 puts "Finished, writing index. #{Time.now - t}"
-           
+
 indexloc = location
 location = (65535*8) + indexloc
 
@@ -115,9 +116,9 @@ index.each_entry_with_index do |entry, idx|
   writeloc(zdump, [location, entry.size].pack('V2'), (idx * 8) + indexloc)
   writeloc(zdump, entry, location)
 
-   # p << "*" * 80 << "\n" 
-   # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
-   # p << unpack(entry).join(":") << "\n"
+  # p << "*" * 80 << "\n" 
+  # p << "seek #{(idx*8) + indexloc} location #{location} size #{entry.size}" << "\n"
+  # p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
