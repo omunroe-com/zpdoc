@@ -8,7 +8,6 @@
 
 %w(cgi rubygems mongrel zarchive htmlshrinker).each {|x| require x}
 
-
 Archive = ZArchive.new(ARGV[0])
 template = Archive.get_article('__Zdump_Template__')
 Htmlshrink = HTMLExpander.new(template, Archive)
@@ -19,13 +18,14 @@ class SimpleHandler < Mongrel::HttpHandler
       t = Time.now                                    
       url = ZUtil::url_unescape(req.params['PATH_INFO'][1..-1])
       url = "index.html" if url.empty?
+      from_cache = false
     
       # if style/js
       if url =~ /(raw|skins|images)\/(.*?)$/
         url = Regexp::last_match[0]
         if Cache[url]
-          text = Cache[url]
-          head["Content-Type"] = (url =~ /\.js$/) ? "text/javascript" : "text/css"
+          text = Cache[url] 
+          from_cache = true
         else
           text = Archive.get_article(url)
           return if text.nil? 
@@ -39,7 +39,12 @@ class SimpleHandler < Mongrel::HttpHandler
         txt ||= "Not found\n\nSorry, article #{url} not found" 
         out.write( Htmlshrink.uncompress(txt) )
       end
-      puts "Got #{url} in #{"%2.3f" % (Time.now - t)} seconds."
+      head["Content-Type"] = case url
+                                when /\.js$/: "text/javascript"               
+                                when /\.css$/: "text/css"
+                                when /\.html$/: "text/html"
+                                end
+      puts "Got #{url} #{from_cache ? 'from cache ' : ''}in #{"%2.3f" % (Time.now - t)} seconds."
     end
   end
 end 
