@@ -18,7 +18,7 @@ class HTMLExpander
 
   def uncompress(text)
     title, languages, text = text.split("\n", 3)
-    # p languages.split(":")
+#    p languages.split(":")
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
     #gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
     return @before.gsub('TITLE', title) + text + @after

@@ -1,3 +1,7 @@
+# Part of the zip-doc suite
+# By Stian Haklev (shaklev@gmail.com), 2007
+# Released under MIT and GPL licenses
+
 require 'tk' 
 require 'tk/wm'
 class GUI

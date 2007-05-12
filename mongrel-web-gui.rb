@@ -1,4 +1,11 @@
 #!/usr/bin/ruby
+# Web server for viewing zdump files.
+# By Stian Haklev (shaklev@gmail.com), 2007
+# Released under MIT and GPL licenses
+#
+# Currently in disarray, tried to get it to work with rubyscript2exe
+# as a Mac .app.
+
 %w(cgi rubygems mongrel zarchive htmlshrinker gui tk tk/root tk/frame tk/bindtag rubyscript2exe).each {|x| require x}
 
 # from http://railsruby.blogspot.com/2006/07/url-escape-and-url-unescape.html
