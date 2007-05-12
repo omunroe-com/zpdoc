@@ -15,32 +15,35 @@ Htmlshrink = HTMLExpander.new(template, Archive)
 Cache = {}
 class SimpleHandler < Mongrel::HttpHandler
   def process(req, resp)
-    t = Time.now                                    
-    url = ZUtil::url_unescape(req.params['PATH_INFO'][1..-1])
-    url = "index.html" if url.empty?
+    resp.start(200) do |head, out|
+      t = Time.now                                    
+      url = ZUtil::url_unescape(req.params['PATH_INFO'][1..-1])
+      url = "index.html" if url.empty?
     
-    # if style/js
-    if url.match(/(raw|skins|images)\/(.*?)$/)
-      url = Regexp::last_match[0]
-      if Cache[url]
-        text = Cache[url]
+      # if style/js
+      if url =~ /(raw|skins|images)\/(.*?)$/
+        url = Regexp::last_match[0]
+        if Cache[url]
+          text = Cache[url]
+          head["Content-Type"] = (url =~ /\.js$/) ? "text/javascript" : "text/css"
+        else
+          text = Archive.get_article(url)
+          return if text.nil? 
+          line1, line2 = text.split("\n",2) 
+          text = line2 if line1 == 'Unnamed'
+          Cache[url] = text
+        end
+        out.write text
       else
-        text = Archive.get_article(url)
-        return if text.nil? 
-        line1, line2 = text.split("\n",2) 
-        text = line2 if line1 == 'Unnamed'
-        Cache[url] = text
+        txt = Archive.get_article(url)
+        txt ||= "Not found\n\nSorry, article #{url} not found" 
+        out.write( Htmlshrink.uncompress(txt) )
       end
-      resp.write text
-    else
-      txt = Archive.get_article(url)
-      resp.write txt.nil? ? "Sorry, article #{url} not found" : Htmlshrink.uncompress(txt)
+      puts "Got #{url} in #{"%2.3f" % (Time.now - t)} seconds."
     end
-    puts "Got #{url} in #{"%2.3f" % (Time.now - t)} seconds."
   end
 end 
-
-
+               
 h = Mongrel::HttpServer.new("0.0.0.0", "2042")
 h.register("/", SimpleHandler.new)
 
