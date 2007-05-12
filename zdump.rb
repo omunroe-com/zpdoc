@@ -55,7 +55,7 @@ class Index
     counter = 0
     @redirects.each do |file, target|
       counter += 1  
-      puts "Processed #{counter} redirects." if counter / 40 == counter.to_f / 40.to_f
+      puts "Processed #{counter} redirects." if counter / 1000 == counter.to_f / 1000.to_f
       target = target
       # in case of recursive redirects, which shouldn't happen, but alas
       recursion = 0

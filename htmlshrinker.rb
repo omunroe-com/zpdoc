@@ -7,13 +7,15 @@
 require 'htmlshrinker-data'
 
 class HTMLExpander
+  attr_accessor :before, :after
   def initialize(template, archive)   
     @before, @after = template.split(20.chr)
     @before.sub!(/\<title>(.*?)\<\/title>/,'<title>TITLE</title>')
-    @before.sub!(/.\//, '')
+    @before.gsub!('./', '/')
+    @after.gsub!(/href="([^\/])/, 'href="/\1')
+#    @before.gsub!(/href="[^.]/, 'href="/\1')
     @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')  
     @after.sub!(/\<li id="f-credits">(.*?)\<\/li>/, '')
-    
   end
 
   def uncompress(text)
