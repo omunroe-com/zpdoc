@@ -16,6 +16,14 @@ end
 #ZFERRET = Ferret::Index::Index.new(:path => "#{ARGV[1]}.zferret")
 HTMLSHRINKER = HTMLShrinker.new(ARGV[1])
 
+# File lib/dipus/util.rb, line 229
+class String
+  def rsplit(*args, &block)
+    reverse.split(*args, &block).reverse.map{|s| s.reverse }
+  end
+end
+
+
 class Webpage    
   attr_reader :text, :compressed, :size, :compressed_size, :filename, :index_content, :block, :buflocation
   
@@ -57,20 +65,26 @@ end
                                                    
 index = []             
 block_ary = []
-cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
-location = 4 # (to hold start of index)
-
+cur_block, counter, buflocation, location, size, buffer = 0, 0, 0, 0, 0, ""
 name = (ARGV[1] ? ARGV[1] : "default")
             
 t = Time.now
 puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}.zindex and directory #{name}.zferret."
 zdump = File.open("#{name}.zdump", "w")
-zdump.seek(location)
-
 ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
-
-Find.find(ARGV[0]) do |newfile|
-  next if File.directory?(newfile) || !File.readable?(newfile)
+filelist = []
+`7za l #{ARGV[0]}`.each do |line| 
+  a, b = line.rsplit(" ", 2)
+  next if b.nil?
+  filelist << b if b.match("/") && b.match(".")
+end
+p filelist
+#Find.find(ARGV[0]) do |newfile|
+filelist.each do |newfile|
+  puts newfile                
+  puts "7za x -y #{ARGV[0]} #{newfile}"
+  `7za x #{ARGV[0]} #{newfile}`
+#  next if File.directory?(newfile) || !File.readable?(newfile)
   next if newfile =~ ignore
   wf = Webpage.new(newfile, cur_block, buflocation)
   puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
@@ -100,12 +114,8 @@ end
 bf_compr = ZCompress::compress(buffer)
 zdump.write(bf_compr)
 block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
-location += bf_compr.size                             
-
-# writing start of index
-zdump.seek(0)          
-zdump.write([location].pack('V'))                      
-puts "location #{location}"
+                             
+zdump.close
 puts "Finished, writing index. #{Time.now - t}"
            
 pages = {}
@@ -127,22 +137,23 @@ pages.each_pair do |x, y|
 end
 
 puts "Sorted another time. #{Time.now - t}"
-indexloc = location
-location = (65535*8) + indexloc
- p = File.open(name + ".zlog",'w')
+
+newindex = File.open(name +".zindex",'w+')
+location = (65535*8)
+# p = File.open(name + ".zlog",'w')
 subindex.each_with_index do |entry, idx|
   next if entry.nil?  
-  zdump.seek((idx*8) + indexloc)                   
-  zdump.print([location, entry.size].pack('V2'))
-  zdump.seek(location)
-  zdump.print(entry)         
+  newindex.seek(idx*8)                   
+  newindex.print([location, entry.size].pack('V2'))
+  newindex.seek(location)
+  newindex.print(entry)         
 
-   p << "*" * 80 << "\n" 
-   p << "seek #{(idx*8) + location} location #{location} size #{entry.size}" << "\n"
-   p << unpack(entry).join(":") << "\n"
+  # p << "*" * 80 << "\n" 
+  # p << "seek #{idx*8} location #{location} size #{entry.size}" << "\n"
+  # p << unpack(entry).join(":") << "\n"
 
   location += entry.size
 end
 puts "Finished. #{Time.now - t}"
-zdump.close
+newindex.close
 # p.close
