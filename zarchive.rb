@@ -10,6 +10,7 @@
 %w(md5 zcompress zutil).each {|x| require x} 
 
 class ZArchive               
+  include ZUtil
   def initialize(file)
     @file = file             
   end
@@ -19,12 +20,13 @@ class ZArchive
 
     zindex_loc = zdump.read(4).unpack('V')[0]
     loc = get_location(url, zdump, zindex_loc)
+    puts loc ? loc.join(":") : "Couldn't find #{url}"
     return loc ? get_text(zdump, *loc) : nil
   end
 
   private
   def get_text(zdump, block_offset, block_size, offset, size)
-    text_compr = ZUtil::readloc( zdump, block_size, block_offset )
+    text_compr = readloc( zdump, block_size, block_offset )
     text_uncompr = ZCompress.uncompress( text_compr )
     return text_uncompr[offset, size]
   end
@@ -39,8 +41,8 @@ class ZArchive
     loc = (firstfour * 8) + zindex_loc                            
     
     # finds the location of the index entry
-    start, size = ZUtil::readloc(zdump, 8, loc).unpack('V2')
-    idx = ZUtil::readloc(zdump, size, start)
+    start, size = readloc(zdump, 8, loc).unpack('V2')
+    idx = readloc(zdump, size, start)
 
     # the index consists of a number of 32 byte entries. it sorts through
     #until it finds the right one.

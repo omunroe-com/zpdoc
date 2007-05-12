@@ -7,33 +7,18 @@
 require 'htmlshrinker-data'
 
 class HTMLExpander
-  def initialize(template, archive, basedir)   
-    file = [%w(skins/common/wikibits.js skins/htmldump/md5.js skins/htmldump/utf8.js skins/htmldump/lookup.js raw/gen.js) , %w(raw/MediaWiki~Common.css raw/MediaWiki~Monobook.css raw/gen.css skins/htmldump/main.css skins/monobook/main.css)]
-    # jscss = ['', '']
-    # pretext = ['<style type="text/css">', '<script type="text/javascript">']
-    # posttext = ['style', 'script']
-    # 
-    # (0..1).each do |no|
-    #   file[no].each do |f|
-    #     txt = archive.get_article(File.join(basedir, f))
-    #     puts File.join(basedir,f), txt.size
-    #     jscss[no] << pretext[no] << txt << posttext[no] unless txt.nil?  
-    #   end
-    # end
-    # @jstext, @csstext = *jscss
-    # @jstext.gsub!(/var ScriptSuffix(.*?)$/,'')   # includes <script> tag - messes up
-    # @jstext = @jstext.gsub(/\/\*(.*?)\*\//m, '').gsub(/\/\/(.*?)$/, '') # rm comments
-    # @csstext.gsub!(/\/\*(.*?)\*\//m, '')
-    # @csstext.gsub!('@import "../monobook/main.css";', '') # we already included this
+  def initialize(template, archive)   
     @before, @after = template.split(20.chr)
     @before.sub!(/\<title>(.*?)\<\/title>/,'<title>TITLE</title>')
-    @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')
-#    @before = @before.gsub("raw", "/raw").gsub("./", "/")
-#    @before.gsub!(HTMLShrinker_data::To_be_replaced, @jstext + @csstext)
+    @before.sub!(/.\//, '')
+    @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')  
+    @after.sub!(/\<li id="f-credits">(.*?)\<\/li>/, '')
+    
   end
 
   def uncompress(text)
-    title, text = text.split("\n", 2)
+    title, languages, text = text.split("\n", 3)
+#    p languages.split(":")
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
     #gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
     return @before.gsub('TITLE', title) + text + @after
@@ -46,11 +31,23 @@ class HTMLShrinker
       return "#R #{Regexp::last_match[1].gsub('../', '')}"
     end
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
+    languages = ''
+    # if text.match(/<div id="p-lang" class="portlet">(.*?)\<\/div>/)
+    #   languages = Regexp::last_match[1]
+    #   langs = {}
+    #   languages.scan(/<a href="(.*?)">/) do |match|
+    #     match = match[0].gsub("../", "")
+    #     lang, url = match.split("/",2)
+    #     langs[lang] = url
+    #   end
+    #   languages = langs.to_a.join(":") 
+    #   p languages
+    # end
     text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
     ZUtil::strip_whitespace(text)
     text.gsub!(/<img src=(.*?)>/, "")
-    return [title, text].join("\n")
+    return [title, languages, text].join("\n")
   end
   
   # takes an example html file, extracts the top and bottom, does some replacements
