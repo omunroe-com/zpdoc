@@ -8,7 +8,7 @@
 
 %w(cgi rubygems mongrel zarchive htmlshrinker).each {|x| require x}
 
-Archive = ZArchive.new(ARGV[0])
+Archive = ZArchive::Reader.new(ARGV[0])
 template = Archive.get_article('__Zdump_Template__')
 Htmlshrink = HTMLExpander.new(template, Archive)
 Cache = {}
@@ -27,7 +27,7 @@ class SimpleHandler < Mongrel::HttpHandler
           text = Cache[url] 
           from_cache = true
         else
-          text = Archive.get_article(url)
+          text = Archive.get(url)
           return if text.nil? 
           line1, line2 = text.split("\n",2) 
           text = line2 if line1 == 'Unnamed'
@@ -35,7 +35,7 @@ class SimpleHandler < Mongrel::HttpHandler
         end
         out.write text
       else
-        txt = Archive.get_article(url)
+        txt = Archive.get(url)
         txt ||= "Not found\n\nSorry, article #{url} not found" 
         out.write( Htmlshrink.uncompress(txt) )
       end

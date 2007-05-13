@@ -18,8 +18,14 @@ module ZUtil
 
   def md5subset(four)
     sprintf("%d", "0x" + four[0..3]).to_i                                                  
+  end                                                        
+  
+  def md5_w_sub(string)
+    md5 = MD5::md5( string ).hexdigest
+    firstfour = md5subset( md5 )
+    return md5, firstfour
   end
-
+    
   def writeloc(file, text, offset)
     file.seek offset
     file.write text
