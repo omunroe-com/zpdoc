@@ -7,23 +7,24 @@
 # I guess that's not very nice in a library? I keep the pop though -
 # cannot believe it isn't standard.
 
+require 'digest'
 module ZUtil
   def unpack(string)
-    return string.unpack('H32V4' * (string.size/32))
+    return string.unpack('H40V4' * (string.size/36))
   end  
 
-  def pack(md5, bstart, bsize, start, size)
-    return [md5, bstart, bsize, start, size].pack('H32V4')
+  def pack(sha1, bstart, bsize, start, size)
+    return [sha1, bstart, bsize, start, size].pack('H40V4')
   end
 
-  def md5subset(four)
-    sprintf("%d", "0x" + four[0..3]).to_i                                                  
+  def sha1subset(four, no = 4)
+    sprintf("%d", "0x" + four[0..(no-1)]).to_i                                                  
   end                                                        
   
-  def md5_w_sub(string)
-    md5 = MD5::md5( string ).hexdigest
-    firstfour = md5subset( md5 )
-    return md5, firstfour
+  def sha1_w_sub(string, no = 4)
+    sha1 = Digest::SHA1.hexdigest( string )
+    firstfour = sha1subset( sha1, no )
+    return sha1, firstfour
   end
     
   def writeloc(file, text, offset)
@@ -51,8 +52,8 @@ module ZUtil
     sprintf("%.2f" % num)
   end
 
-  module_function :unpack, :pack, :md5subset, :writeloc, :readloc, :strip_whitespace
-  module_function :url_unescape, :npp
+  module_function :unpack, :pack, :sha1subset, :writeloc, :readloc, :strip_whitespace
+  module_function :url_unescape, :npp, :sha1_w_sub
 end
 
 class String

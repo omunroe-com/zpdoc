@@ -9,7 +9,7 @@
 %w(cgi rubygems mongrel zarchive htmlshrinker).each {|x| require x}
 
 Archive = ZArchive::Reader.new(ARGV[0])
-template = Archive.get_article('__Zdump_Template__')
+template = Archive.get('__Zdump_Template__')
 Htmlshrink = HTMLExpander.new(template, Archive)
 Cache = {}
 class SimpleHandler < Mongrel::HttpHandler

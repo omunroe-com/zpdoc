@@ -5,7 +5,7 @@
 #
 # Usage: ruby zdump.rb <directory> <output file> <template file>
 
-%w(md5 zarchive find htmlshrinker zutil cgi).each {|x| require x}
+%w(sha1 zarchive find htmlshrinker zutil cgi).each {|x| require x}
 include ZUtil                              
 
 STDOUT.sync = true
