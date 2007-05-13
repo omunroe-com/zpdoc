@@ -48,7 +48,7 @@ filelist.each_with_index do |newfile, counter|
   if (counter).to_f / 1000.0 == (counter) / 1000
     page_per_sec = counter.to_f / (Time.now - t2).to_f
     puts "\n#{counter} pages indexed in #{npp(Time.now - t)} seconds, average #{npp(page_per_sec)} files per second. #{archive.hardlinks.size} redirects, #{npp(archive.hardlinks.size.to_f * 100 / counter.to_f)} percentage of all pages."
-    puts "Estimated time left: #{npp((no_of_files.to_f / page_per_sec) /60)} minutes."
+    puts "Estimated time left: #{npp(((no_of_files - counter).to_f / page_per_sec) /60)} minutes."
     STDOUT.print "Writing block: "
   end             
   text = shrinker.compress(File.read(newfile))
