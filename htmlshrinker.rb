@@ -30,8 +30,7 @@ end
 class HTMLShrinker             
   def compress(text)
     if text =~ /\<meta http-equiv=\"Refresh\" content=\"0\;url=(.*?)\" \/\>/
-      url = url_unescape(Regexp::last_match[1].gsub('../', ''))
-      return "#R #{url}"
+      return "#R #{Regexp::last_match[1].gsub('../', '')}"
     end
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
     languages = ''
