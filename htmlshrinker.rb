@@ -5,29 +5,49 @@
 # Released under MIT and GPL licenses
 
 require 'htmlshrinker-data'
+require 'zutil'
 
 class HTMLExpander
   attr_accessor :before, :after
-  def initialize(template, archive)   
-    @before, @after = template.split(20.chr)
+  def initialize(template, replacements, iwnames)         
+    @iwnames = iwnames
+    @replacements = replacements
+    @before, @after = template.split(2.chr)
     @before.sub!(/\<title>(.*?)\<\/title>/,'<title>TITLE</title>')
     @before.gsub!('./', '/')
     @after.gsub!(/href="([^\/])/, 'href="/\1')
 #    @before.gsub!(/href="[^.]/, 'href="/\1')
     @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')  
     @after.sub!(/\<li id="f-credits">(.*?)\<\/li>/, '')
+    @after.sub!(/(<div id="p-lang" class="portlet">)(.*?)(\<\/div>)/m, '\1IWLINKS\3')
   end
 
   def uncompress(text)
-    title, languages, text = text.split("\n", 3)
-#    p languages.split(":")
-    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
-    #gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
-    return @before.gsub('TITLE', title) + text + @after
+    title, languages, text = text.split(0.chr, 3)
+    langs = languages.split(1.chr)
+    result = extract_languages(langs)
+    puts result
+    @replacements.each {|x, y| text.gsub!(y, x)}
+    return @before.gsub('TITLE', title) + text + @after.gsub("IWLINKS", result)
   end
 end
 
-class HTMLShrinker             
+  def extract_languages(langs)  
+    result = '<h5>Interwiki</h5><div class="pBody"><ul>'
+    (langs.size / 2).times do |no|
+      id, link = langs[no * 2], langs[(no * 2) + 1]
+      result << "<li><a href='/#{id}/#{link}'>#{@iwnames[id]}</a></li>"
+    end                          
+    return result + "</ul>"
+  end
+
+class HTMLShrinker   
+  attr_accessor :replacements, :iwnames
+  def initialize
+    @iwnames = {}
+    @replacements =  HTMLShrinker_data::Replacements
+  end
+  
   def compress(text)
     if text =~ /\<meta http-equiv=\"Refresh\" content=\"0\;url=(.*?)\" \/\>/
       url = url_unescape(Regexp::last_match[1].gsub('../', ''))
@@ -35,22 +55,23 @@ class HTMLShrinker
     end
     title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
     languages = ''
-    # if text.match(/<div id="p-lang" class="portlet">(.*?)\<\/div>/)
-    #   languages = Regexp::last_match[1]
-    #   langs = {}
-    #   languages.scan(/<a href="(.*?)">/) do |match|
-    #     match = match[0].gsub("../", "")
-    #     lang, url = match.split("/",2)
-    #     langs[lang] = url
-    #   end
-    #   languages = langs.to_a.join(":") 
-    #   p languages
-    # end
+    if text.match(/<div id="p-lang" class="portlet">(.*?)\<\/div>/m)
+      languages = Regexp::last_match[1]
+      langs = {}
+      languages.scan(/<a href="(.*?)">(.*?)\</) do |match|
+        firstline = match[0].gsub("../", "")
+        lang, url = firstline.split("/",2)
+        langs[lang] = url
+        @iwnames[lang] = match[1]
+      end
+      languages = langs.to_a.join(1.chr) 
+    end
     text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
-    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
+    @replacements.each {|x, y| text.gsub!(x, y) }
     ZUtil::strip_whitespace(text)
+#    text.gsub!(/\<!--(.*?)-->/, '')
     text.gsub!(/<img src=(.*?)>/, "")
-    return [title, languages, text].join("\n")
+    return [title, languages, text].join(0.chr)
   end
   
   # takes an example html file, extracts the top and bottom, does some replacements
@@ -58,7 +79,7 @@ class HTMLShrinker
   def extract_template(text)
     before = Regexp::last_match.pre_match if text.match(/<\!-- start content -->/)
     after = Regexp::last_match.post_match if text.match(/<\!-- end content -->/)       
-    return [before, after].join(20.chr)
+    return [before, after].join(2.chr)
   end
 end
 

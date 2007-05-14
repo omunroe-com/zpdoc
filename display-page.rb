@@ -4,6 +4,8 @@
 # Released under MIT and GPL licenses
 
 # get a page displayed, used in debugging
-require 'zarchive'
+require 'zarchive'        
+require 'htmlshrinker'
 archive = ZArchive::Reader.new(ARGV[0])
-p archive.get(ARGV[1])
+expander = HTMLExpander.new(archive.get('__Zdump_Template__'), archive.get_meta[:replacements])
+p expander.uncompress(archive.get(ARGV[1]))

@@ -170,8 +170,7 @@ module ZArchive
       # meta location
       writeloc(@file, [location, @compressor.method, @idx_size].pack('VCC'), 4)
 
-      writeloc(@file, Marshal.dump(@meta), @location) if defined?(@meta)
-
+      writeloc(@file, Marshal.dump(@meta), location) if defined?(@meta)
       @file.close
     end
 
@@ -192,7 +191,7 @@ module ZArchive
       counter = 0
       @hardlinks.each do |file, target|
         counter += 1  
-
+        puts "Hardlink #{file} with #{target}"
         # in case of recursive redirects, which shouldn't happen, but alas
         recursion = 0
         while @hardlinks[target] && recursion < 3

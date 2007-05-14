@@ -9,8 +9,10 @@
 %w(cgi rubygems mongrel zarchive htmlshrinker).each {|x| require x}
 
 Archive = ZArchive::Reader.new(ARGV[0])
-template = Archive.get('__Zdump_Template__')
-Htmlshrink = HTMLExpander.new(template, Archive)
+replacements = Archive.get_meta[:replacements]
+template = HTMLShrinker.new.extract_template(File.read("/id/o/s/l/Oslo.html"))
+iwnames = Archive.get_meta[:iwnames]
+Htmlshrink = HTMLExpander.new(template, replacements, iwnames)
 Cache = {}
 class SimpleHandler < Mongrel::HttpHandler
   def process(req, resp)
@@ -29,8 +31,8 @@ class SimpleHandler < Mongrel::HttpHandler
         else
           text = Archive.get(url)
           return if text.nil? 
-          line1, line2 = text.split("\n",2) 
-          text = line2 if line1 == 'Unnamed'
+          line1, line2, line3 = text.split(0.chr, 3) 
+          text = line3 if line1 == 'Unnamed'
           Cache[url] = text
         end
         out.write text

@@ -16,7 +16,8 @@ if ARGV.size == 0
 end
 
 shrinker = HTMLShrinker.new
-name = ARGV[1] 
+name = ARGV[1]   
+template = ARGV[2] ? ARGV[2] : base + "index.html"
 
 t = Time.now
 base = File.join(ARGV[0], "/")
@@ -26,7 +27,7 @@ archive = ZArchive::Writer.new(name)
 
 ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /(Berkas~|Pembicaraan|Templat|Pengguna)/ 
 
-template = shrinker.extract_template(File.read(base + "index.html" ))
+template = shrinker.extract_template(File.read(template))
 archive.add("__Zdump_Template__", template)
 
 no_of_files = 1       
@@ -49,16 +50,18 @@ filelist.each_with_index do |newfile, counter|
     page_per_sec = counter.to_f / (Time.now - t2).to_f
     puts "\n#{counter} pages indexed in #{npp(Time.now - t)} seconds, average #{npp(page_per_sec)} files per second. #{archive.hardlinks.size} redirects, #{npp(archive.hardlinks.size.to_f * 100 / counter.to_f)} percentage of all pages."
     puts "Estimated time left: #{npp(((no_of_files - counter).to_f / page_per_sec) /60)} minutes."
-    STDOUT.print "Writing block: "
   end             
   text = shrinker.compress(File.read(newfile))
+  filename = newfile[to_strip..-1]
   if text[0..2] == "#R "
-    archive.add_hardlink(newfile, text[3..-1])
+    archive.add_hardlink(filename, text[3..-1])
   else
-    archive.add(newfile[to_strip..-1], text)
+    archive.add(filename, text)
   end
 end        
 filelist = nil # memory cleanup
-
+                      
+archive.set_meta({:replacements => shrinker.replacements, :iwnames => shrinker.iwnames})
+p shrinker.iwnames
 puts "\n\nFinished, flushing index/processing redirects. #{npp(Time.now - t)}"
 archive.flush # to make sure all blocks have been written
