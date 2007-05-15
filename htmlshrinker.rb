@@ -9,13 +9,14 @@ require 'zutil'
 
 class HTMLExpander
   attr_accessor :before, :after
-  def initialize(template, replacements, iwnames)         
+  def initialize(template, replacements, iwnames, lang)
+    @lang = lang         
     @iwnames = iwnames
     @replacements = replacements
     @before, @after = template.split(2.chr)
     @before.sub!(/\<title>(.*?)\<\/title>/,'<title>TITLE</title>')
-    @before.gsub!('./', '/')
-    @after.gsub!(/href="([^\/])/, 'href="/\1')
+    @before.gsub!('./', "/#{@lang}/")
+    @after.gsub!(/href="([^\/])/, 'href="/' + @lang + '/\1')
 #    @before.gsub!(/href="[^.]/, 'href="/\1')
     @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')  
     @after.sub!(/\<li id="f-credits">(.*?)\<\/li>/, '')

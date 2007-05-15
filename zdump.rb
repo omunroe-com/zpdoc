@@ -17,10 +17,10 @@ end
 
 shrinker = HTMLShrinker.new
 name = ARGV[1]   
+base = File.join(ARGV[0], "/")
 template = ARGV[2] ? ARGV[2] : base + "index.html"
 
 t = Time.now
-base = File.join(ARGV[0], "/")
 puts "Indexing files in #{base} and writing the file #{name}"
 to_strip = (base).size
 archive = ZArchive::Writer.new(name)
