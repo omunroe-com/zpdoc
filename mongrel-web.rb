@@ -26,12 +26,13 @@ end
 def do_sizes(file, arc)
   content = file.match(/\<div id="contentSub"\>(.*?)<div class="printfooter">/m)[1]
   ary = []
-  content.scan(/a href="\.\.\/\.\.\/\.\.\/(.*?)"(.*?)>(.*?)<\/a>/) do |match|
-    ary << match
-  end
+  content.scan(/a href="\.\.\/\.\.\/\.\.\/(.*?)" title="(.*?)">(.*?)<\/a>/) do |match|
+    ary << match                                          
+  end                 
+  puts "Changing #{ary.size} links."
   ary.each do |match|
     size = arc.get_size(ZUtil::url_unescape(match[0])) / 1000
-    content.sub!("<a href=\"../../../#{match[0]}\"#{match[1]}>#{match[2]}</a>", "<a href='/#{match[0]}' #{match[1]}>#{match[2]} (#{size}k)</a>")
+    content.sub!("<a href=\"../../../#{match[0]}\" title=\"#{match[1]}\">#{match[2]}</a>", "<a href='/#{match[0]}' title='#{match[1]} (#{size}k)'>#{match[2]}</a>")
   end
   content = '<div id="contentSub">' + content + "<div class='printfooter'>"
   file.gsub!(/\<div id="contentSub"\>(.*?)<div class="printfooter">/m, content)
