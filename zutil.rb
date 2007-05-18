@@ -18,8 +18,8 @@ module ZUtil
   end
 
   def sha1subset(four, no = 4)
-    sprintf("%d", "0x" + four[0..(no-1)]).to_i                                                  
-  end                                                        
+    four[0..(no-1)].to_i(16)                                                  
+  end
   
   def sha1_w_sub(string, no = 4)
     sha1 = Digest::SHA1.hexdigest( string )
