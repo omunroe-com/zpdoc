@@ -75,7 +75,7 @@ module ZArchive
       md5 = MD5::md5(url).hexdigest 
 
       # converts the first four characters of the hex md5 digest into an integer
-      firstfour = sprintf("%d", ("0x" + md5[0..3]) ).to_i                       
+      firstfour = md5[0..3].to_i(16)
 
       # uses this number to calculate the location of the metaindex entry
       loc = (firstfour * 8) + zindex_loc                            

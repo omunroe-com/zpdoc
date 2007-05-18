@@ -17,7 +17,7 @@ module ZUtil
   end
 
   def md5subset(four)
-    sprintf("%d", "0x" + four[0..3]).to_i                                                  
+    four[0..3].to_i(16)                                                  
   end                                                        
   
   def md5_w_sub(string)
