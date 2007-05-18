@@ -55,6 +55,14 @@ module ZArchive
       @compressor = Compressor.new(@compress)
     end
 
+    def get_size(url)
+      zdump = File.open(@file, 'r')
+
+      zindex_loc = zdump.read(4).unpack('V')[0]
+      loc = get_location(url, zdump, zindex_loc)
+      return loc ? loc[3] : 0
+    end
+
     def get(url)
       # we open this on each request, because otherwise it gets messy with threading
       zdump = File.open(@file, 'r')

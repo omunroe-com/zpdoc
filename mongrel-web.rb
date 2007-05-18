@@ -12,14 +12,30 @@ Archive = ZArchive::Reader.new(ARGV[0])
 template = Archive.get('__Zdump_Template__')
 Htmlshrink = HTMLExpander.new(template, Archive)
 Cache = {}           
-                                                 
+
 class NilLog
-  def <<
-  end               
+  def <<; end               
   def info(*args); end
+  def error(*args); end
   def warn(*args); end
   def debug(*args); end
   def debug?(*args); false; end
+end
+
+def do_sizes(file, arc)
+  content = file.match(/\<div id="contentSub"\>(.*?)<div class="printfooter">/m)[1]
+  ary = []
+  content.scan(/a href="\.\.\/\.\.\/\.\.\/(.*?)"(.*?)>(.*?)<\/a>/) do |match|
+    ary << match
+  end
+  ary.each do |match|
+    size = arc.get_size(ZUtil::url_unescape(match[0])) / 1000
+      fsize = '-1' if size < 15 
+      fsize = '+1' if size > 50
+    content.sub!("<a href=\"../../../#{match[0]}\"#{match[1]}>#{match[2]}</a>", "<a href='/#{match[0]}' #{match[1]}><font size=#{fsize}>#{match[2]} (#{size}k)</font></a>")
+  end
+  content = '<div id="contentSub">' + content + "<div class='printfooter'>"
+  file.gsub!(/\<div id="contentSub"\>(.*?)<div class="printfooter">/m, content)
 end
 
 wiki_proc = lambda do |req, resp| 
@@ -46,7 +62,10 @@ wiki_proc = lambda do |req, resp|
   else
     txt = Archive.get(url)
     txt ||= "Not found\n\nSorry, article #{url} not found" 
-    resp.body = ( Htmlshrink.uncompress(txt) )
+    txt = Htmlshrink.uncompress(txt)
+    txt = do_sizes(txt, Archive)
+    resp.body = ( txt )
+
   end
   resp["Content-Type"] = case url
   when /\.js$/: "text/javascript"               
