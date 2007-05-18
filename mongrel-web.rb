@@ -6,12 +6,30 @@
 # Usage:
 # ruby mongrel-web.rb <zdumpfile> <path-prefix>
 
-%w(cgi rubygems mongrel zarchive htmlshrinker webrick).each {|x| require x}
+%w(cgi rubygems mongrel zarchive htmlshrinker webrick trollop).each {|x| require x}
 include WEBrick
 Archive = ZArchive::Reader.new(ARGV[0])
 template = Archive.get('__Zdump_Template__')
 Htmlshrink = HTMLExpander.new(template, Archive)
-Cache = {}           
+Cache = {}       
+
+# do commandline parsing
+opts = Trollop::options do
+  version "mongrel-web 0.1 (c) 2007 Stian Haklev (MIT/GPL)"
+  banner <<-EOS
+mongrel-web.rb is part of the zip-doc suite. It serves the contents of a .zdump file dynamically to localhost, allowing you to browse a wikipedia offline.
+
+Usage:
+       ruby mongrel-web.rb [options] <filename.zdump>
+       (for example ruby mongrel-web.rb ../Downloads/id.zdump)
+where [options] are:
+EOS
+
+  opt :sizes, "Insert sizes after each link, and change font-size based on size of linked-to article (very slow)"
+  opt :prefix, "Insert a given prefix before any url - should not be necessary with standard zdump files", :type => :string, :default => ''
+end                                                    
+
+Base = opts[:prefix]
 
 class NilLog
   def <<; end               
@@ -47,7 +65,7 @@ wiki_proc = lambda do |req, resp|
 
   # if style/js
   if url =~ /(raw|skins|images)\/(.*?)$/
-    url = Regexp::last_match[0]
+    url = Base + Regexp::last_match[0]
     if Cache[url]
       text = Cache[url] 
       from_cache = 'from cache '
@@ -63,7 +81,7 @@ wiki_proc = lambda do |req, resp|
     txt = Archive.get(url)
     txt ||= "Not found\n\nSorry, article #{url} not found" 
     txt = Htmlshrink.uncompress(txt)
-    txt = do_sizes(txt, Archive)
+    txt = do_sizes(txt, Archive) if opts[:sizes]
     resp.body = ( txt )
 
   end
