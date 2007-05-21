@@ -1,15 +1,15 @@
 #!/usr/bin/ruby
-%w(sha1 zcompress find htmlshrinker zcompress).each {|x| require x}
+%w(md5 zcompress find htmlshrinker zcompress).each {|x| require x}
          
 def unpack(string)
   return string.unpack('H32V4' * (string.size/32))
 end  
   
-def pack(sha1, bstart, bsize, start, size)
-  return [sha1, bstart, bsize, start, size].pack('H32V4')
+def pack(md5, bstart, bsize, start, size)
+  return [md5, bstart, bsize, start, size].pack('H32V4')
 end
 
-def sha1subset(four)
+def md5subset(four)
   sprintf("%d", "0x" + four[0..3]).to_i                                                  
 end
           
@@ -129,9 +129,9 @@ subindex = []
 
 puts "Sorted onetime. #{Time.now - t}"
 pages.each_pair do |x, y| 
-  sha1 = MD5.sha1(x).hexdigest
-  entry = pack(sha1, y[:block_start], y[:block_size], y[:start], y[:size])
-  firstfour = sha1subset(sha1)
+  md5 = MD5.md5(x).hexdigest
+  entry = pack(md5, y[:block_start], y[:block_size], y[:start], y[:size])
+  firstfour = md5subset(md5)
   subindex[firstfour] = "" if subindex[firstfour].nil?
   subindex[firstfour] << entry
 end

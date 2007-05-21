@@ -1,94 +1,148 @@
 #!/usr/bin/ruby
-# Program that packs a directory tree into a zdump file.
-# By Stian Haklev (shaklev@gmail.com), 2007
-# Released under MIT and GPL licenses
-#
-# Usage: ruby zdump.rb <directory> <output file> <template file>
-
-%w(sha1 rubygems zarchive find htmlshrinker zutil cgi trollop).each {|x| require x}
-include ZUtil                              
-
-STDOUT.sync = true
-
-# do commandline parsing
-opts = Trollop::options do
-  version "zip-doc 0.1 (c) 2007 Stian Haklev (MIT/GPL)"
-  banner <<-EOS
-zdump.rb is part of the zip-doc suite. It basicallly processes the contents of a wikipedia-*-html.7z file (that has already been unextracted), and generates a .zdump file that can be used with mongrel-web.rb.
-
-Usage:
-       ruby zdump.rb [options] <path> <filename>
-       (for example ruby zdump.rb ../Downloads/id)
-where [options] are:
-EOS
-
-  opt :ignore, "Comma-separated list of file patterns to ignore, f. ex: ^User%talk,Discussion. ^ means begins at the start of a line, and % matches anything", :type => :string
-  opt :idxsize, "Size of index, recommend 2 for small collections and 4 for Wikipedia", :type => :integer, :default => 4
-  opt :zlib, "Use zlib instead of bzip2"
-  opt :suffix, "No of letters to remove from path (default is usually good enough)", :type => :integer                     
-  opt :blocksize, "Blocksize for compression in kb, defaults to 900", :type => :integer, :default => 900 
-  opt :templatefile, "Name of template file (defaults to index.html in given directory)", :type => :string
-end        
-
-Trollop::die :idxsize, "out of range, must be between 1 and 7" unless !opts[:idxsize] || (opts[:idxsize] > 0 && opts[:idxsize] < 8)
-Trollop::die :blocksize, "out of range, must be between 1 and 10000" unless !opts[:idxsize] || (opts[:idxsize] > 0 && opts[:idxsize] < 10001)
-Trollop::die :templatefile, "does not exist" unless !opts[:templatefile] || File.exists?(opts[:templatefile])
-
-# check the rest of the arguments
-Trollop::die "Wrong number of arguments" unless ARGV.size == 2
-dir = ARGV[0]
-Trollop::die "Directory #{dir} does not exist or is not readable" unless File.exists?(dir)
-Trollop::die "Directory #{ARGV[1]} does not exist" unless File.exists?(File.dirname(ARGV[1]))
-
-# transform ignore to regexp
-if opts[:ignore]
-  ignore = Regexp.new(opts[:ignore].gsub('%', '.*?').split(',').join('|'))
+%w(md5 zcompress find htmlshrinker zcompress).each {|x| require x}
+         
+def unpack(string)
+  return string.unpack('H32V4' * (string.size/32))
+end  
+  
+def pack(md5, bstart, bsize, start, size)
+  return [md5, bstart, bsize, start, size].pack('H32V4')
 end
 
-shrinker = HTMLShrinker.new
-name = ARGV[1] 
+def md5subset(four)
+  sprintf("%d", "0x" + four[0..3]).to_i                                                  
+end
+          
+#ZFERRET = Ferret::Index::Index.new(:path => "#{ARGV[1]}.zferret")
+HTMLSHRINKER = HTMLShrinker.new(ARGV[1])
 
+class Webpage    
+  attr_reader :text, :compressed, :size, :compressed_size, :filename, :index_content, :block, :buflocation
+  
+  def initialize(filename, block, buflocation)
+    @filename = filename                                                                    
+    @block = block
+    @text = HTMLSHRINKER.compress(File.read(filename))
+    @size = @text.size
+#    @index_content = index_content           
+    @buflocation = buflocation
+  end
+                    
+  def empty!
+    @text = ''
+    @index_content = ''
+  end
+  
+  def index_content
+    content = ""
+    case @filename
+      when /.txt$/i
+        content = @text
+
+      when /.htm$|.html$/i        # get the file, strip all <> tags
+        content = @text.gsub(/\<head>.*?\<\/head>/im,"").gsub(/\<.*?\>/m, " ")
+    end
+    return content.strip
+  end    
+end
+            
+class Block                         
+  attr_reader :number, :start, :size
+  def initialize(number, start, size)  
+    @number = number
+    @start = start
+    @size = size
+  end
+end
+                                                   
+index = []             
+block_ary = []
+cur_block, counter, buflocation, size, buffer = 0, 0, 0, 0, ""
+location = 4 # (to hold start of index)
+
+name = (ARGV[1] ? ARGV[1] : "default")
+            
 t = Time.now
-base = File.join(dir, "/")
-puts "Indexing files in #{base} and writing the file #{name}"
-to_strip = opts[:suffix] ? opts[:suffix] : (base).size
-compr = opts[:zlib] ? ZArchive::METHOD_ZLIB : ZArchive::METHOD_BZ2
-archive = ZArchive::Writer.new(name, compr, opts[:idxsize], opts[:blocksize] * 1000)
+puts "Indexing files in #{ARGV[0]}/ and writing the file #{name}.zindex and directory #{name}.zferret."
+zdump = File.open("#{name}.zdump", "w")
+zdump.seek(location)
 
+ignore = ARGV[2] ? Regexp.new(ARGV[2]) : /^(Bilde~|Bruker|Pembicaraan_Pengguna~)/ 
 
-template = shrinker.extract_template(File.read(base + "index.html" ))
-archive.add("__Zdump_Template__", template)
-
-no_of_files = 1       
-all_counter = 1
-puts "Reading filelist."
-filelist = []
-Find.find(base) do |newfile|                     
-  all_counter += 1
+Find.find(ARGV[0]) do |newfile|
   next if File.directory?(newfile) || !File.readable?(newfile)
   next if newfile =~ ignore
-  filelist << newfile
-  no_of_files += 1                  
+  wf = Webpage.new(newfile, cur_block, buflocation)
+  puts "#{counter} files indexed." if counter.to_i / 100.0 == counter / 100
+
+  buffer << wf.text
+  buflocation += wf.text.size
+  wf.empty!
+  counter += 1                  
+  index << wf
+  next if buffer.size < 900000
+
+  bf_compr = ZCompress::compress(buffer)
+  zdump.write(bf_compr)
+  block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
+  buffer = ''       
+  buflocation = 0
+  cur_block += 1                                           
+  location += bf_compr.size
+  puts "Writing block no #{cur_block}"
+       
+#  ZFERRET << {:filename => wf.filename, :content => wf.index_content, :offset => location, :size => wf.compressed_size } 
+#  location += wf.compressed_size
+ 
+end        
+
+# to ensure last part of buffer is written
+bf_compr = ZCompress::compress(buffer)
+zdump.write(bf_compr)
+block_ary[cur_block] = Block.new(cur_block, location, bf_compr.size)
+location += bf_compr.size                             
+
+# writing start of index
+zdump.seek(0)          
+zdump.write([location].pack('V'))                      
+puts "location #{location}"
+puts "Finished, writing index. #{Time.now - t}"
+           
+pages = {}
+index.each do |file|
+  pages[file.filename] = {:block_start => block_ary[file.block].start,
+                          :block_size => block_ary[file.block].size,
+                          :start => file.buflocation,
+                          :size => file.size}         
+end
+subindex = []                        
+
+puts "Sorted onetime. #{Time.now - t}"
+pages.each_pair do |x, y| 
+  md5 = MD5.md5(x).hexdigest
+  entry = pack(md5, y[:block_start], y[:block_size], y[:start], y[:size])
+  firstfour = md5subset(md5)
+  subindex[firstfour] = "" if subindex[firstfour].nil?
+  subindex[firstfour] << entry
 end
 
-puts "Filelist read, selected #{no_of_files} out of #{all_counter}, making up #{npp(100 * no_of_files.to_f / all_counter.to_f)}%."
-puts "Beginning to compress."                 
-t2 = Time.now  
-filelist.each_with_index do |newfile, counter|
-  if (counter).to_f / 1000.0 == (counter) / 1000
-    page_per_sec = counter.to_f / (Time.now - t2).to_f
-    puts "\n#{counter} pages indexed in #{npp(Time.now - t)} seconds, average #{npp(page_per_sec)} files per second. #{archive.hardlinks.size} redirects, #{npp(archive.hardlinks.size.to_f * 100 / counter.to_f)} percentage of all pages."
-    puts "Estimated time left: #{npp(((no_of_files - counter).to_f / page_per_sec) /60)} minutes."
-    STDOUT.print "Writing block: "
-  end             
-  text = shrinker.compress(File.read(newfile))
-  if text[0..2] == "#R "
-    archive.add_hardlink(newfile, text[3..-1])
-  else
-    archive.add(newfile[to_strip..-1], text)
-  end
-end        
-filelist = nil # memory cleanup
+puts "Sorted another time. #{Time.now - t}"
+indexloc = location
+location = (65535*8) + indexloc
+ p = File.open(name + ".zlog",'w')
+subindex.each_with_index do |entry, idx|
+  next if entry.nil?  
+  zdump.seek((idx*8) + indexloc)                   
+  zdump.print([location, entry.size].pack('V2'))
+  zdump.seek(location)
+  zdump.print(entry)         
 
-puts "\n\nFinished, flushing index/processing redirects. #{npp(Time.now - t)}"
-archive.flush # to make sure all blocks have been written
+   p << "*" * 80 << "\n" 
+   p << "seek #{(idx*8) + location} location #{location} size #{entry.size}" << "\n"
+   p << unpack(entry).join(":") << "\n"
+
+  location += entry.size
+end
+puts "Finished. #{Time.now - t}"
+zdump.close
+# p.close

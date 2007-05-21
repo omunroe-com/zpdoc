@@ -1,64 +1,74 @@
 #!/usr/bin/ruby
-# Program to replace commonly used html, extract out top and bottom parts
-# of pages, which are roughly similar, and recompose them in the other end
-# By Stian Haklev (shaklev@gmail.com), 2007
-# Released under MIT and GPL licenses
+# program to replace commonly used <HTML> to shrink size of page
 
 require 'htmlshrinker-data'
 
-class HTMLExpander
-  attr_accessor :before, :after
-  def initialize(template, archive)   
-    @before, @after = template.split(20.chr)
-    @before.sub!(/\<title>(.*?)\<\/title>/,'<title>TITLE</title>')
-    @before.gsub!('./', '/')
-    @after.gsub!(/href="([^\/])/, 'href="/\1')
-#    @before.gsub!(/href="[^.]/, 'href="/\1')
-    @before.sub!(/\<h1 class\=\"firstHeading\">(.*?)\<\/h1>/, '<h1 class="firstHeading">TITLE</h1>')  
-    @after.sub!(/\<li id="f-credits">(.*?)\<\/li>/, '')
+class HTMLShrinker             
+  def initialize(basedir)   
+    js = %w(skins/common/wikibits.js skins/htmldump/md5.js skins/htmldump/utf8.js skins/htmldump/lookup.js raw/gen.js)
+    css = %w(raw/MediaWiki~Common.css raw/MediaWiki~Monobook.css raw/gen.css skins/htmldump/main.css skins/monobook/main.css)
+    @jstext, @csstext = '', ''
+    cssbegin, cssend = '<style type="text/css">', '</style>' 
+    jsbegin, jsend = '<script type="text/javascript">', '</script>'
+    js.each {|f| @jstext << jsbegin << File.read(File.join(basedir, f)) << jsend if File.exists?(File.join(basedir, f)) }
+    css.each {|f| @csstext << cssbegin << File.read(File.join(basedir, f)) << cssend if File.exists?(File.join(basedir, f)) }
+    @jstext.gsub!(/var ScriptSuffix(.*?)$/,'')   # includes <script> tag - messes up
+    @jstext = @jstext.gsub(/\/\*(.*?)\*\//m, '').gsub(/\/\/(.*?)$/, '') # rm comments
+    @csstext.gsub!(/\/\*(.*?)\*\//m, '')
+    @csstext.gsub!('@import "../monobook/main.css";', '') # we already included this
+  end
+
+  def compress(text)
+    title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
+    text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
+    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
+    strip_whitespace(text)
+    text.gsub!(/<img src=(.*?)>/, "")
+    return [title, text].join("\n")
   end
 
   def uncompress(text)
-    title, languages, text = text.split("\n", 3)
-#    p languages.split(":")
+    title, text = text.split("\n", 2)
     HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(y, x)}
-    #gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext)
-    return @before.gsub('TITLE', title) + text + @after
+    result = HTMLShrinker_data::Start.gsub(/TITLE/, title).gsub("POINTER", @csstext + @jstext) + text + HTMLShrinker_data::Ending
+    return strip_whitespace(result)
   end
-end
+                                          
+  def compress_file(filename)
+    puts "Compressing #{filename}"
+    text = File.read(filename)
+    File.open(filename + ".shrunk", "w") {|f| f.write(compress(text)) } 
+  end
 
-class HTMLShrinker             
-  def compress(text)
-    if text =~ /\<meta http-equiv=\"Refresh\" content=\"0\;url=(.*?)\" \/\>/
-      url = url_unescape(Regexp::last_match[1].gsub('../', ''))
-      return "#R #{url}"
-    end
-    title = (text.match(/"firstHeading">(.*?)\<\/h1>/m) ? Regexp::last_match[1] : "Unnamed")
-    languages = ''
-    # if text.match(/<div id="p-lang" class="portlet">(.*?)\<\/div>/)
-    #   languages = Regexp::last_match[1]
-    #   langs = {}
-    #   languages.scan(/<a href="(.*?)">/) do |match|
-    #     match = match[0].gsub("../", "")
-    #     lang, url = match.split("/",2)
-    #     langs[lang] = url
-    #   end
-    #   languages = langs.to_a.join(":") 
-    #   p languages
-    # end
-    text = Regexp::last_match[1] if text.match(/ start content -->(.*?)\<\!-- end content /m)   
-    HTMLShrinker_data::Replacements.each {|x, y| text.gsub!(x, y) }
-    ZUtil::strip_whitespace(text)
-    text.gsub!(/<img src=(.*?)>/, "")
-    return [title, languages, text].join("\n")
+  def uncompress_file(filename)
+    puts "Uncompressing #{filename}"
+    text = File.read(filename)
+    File.open(filename[0..-(".shrunk".size+1)], "w") {|f| f.write(uncompress(text)) } 
+  end
+
+  def try(filename)
+    puts "Creating #{filename}.try.html"
+    text = File.read(filename)
+    File.open(filename + ".try.html", "w") {|f| f.write(uncompress(compress(text))) } 
+  end  
+
+  private
+  def strip_whitespace(txt)
+    return txt.gsub(/\t/, " ").gsub('  ',' ').gsub("\n", '') 
   end
   
-  # takes an example html file, extracts the top and bottom, does some replacements
-  # - this can later be stored and handed to HTMLShrinker at initialization
-  def extract_template(text)
-    before = Regexp::last_match.pre_match if text.match(/<\!-- start content -->/)
-    after = Regexp::last_match.post_match if text.match(/<\!-- end content -->/)       
-    return [before, after].join(20.chr)
-  end
 end
 
+if __FILE__ == $0
+  shrink = HTMLShrinker.new(File.join(File.dirname(ARGV[1]),"../../.."))
+  p File.join(File.dirname(ARGV[1]),"../../..")           
+ 
+  case ARGV.shift
+    when 'compress'
+      ARGV.each {|file| shrink.compress_file(file)}
+    when 'uncompress'
+      ARGV.each {|file| shrink.uncompress_file(file)}   
+    when 'try'
+      ARGV.each {|file| shrink.try(file)}
+  end                    
+end
