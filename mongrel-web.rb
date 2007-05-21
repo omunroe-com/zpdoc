@@ -6,7 +6,7 @@
 # Usage:
 # ruby mongrel-web.rb <zdumpfile> <path-prefix>
 
-%w(cgi rubygems mongrel zarchive htmlshrinker webrick trollop).each {|x| require x}
+%w(webrick zarchive htmlshrinker rubygems trollop).each {|x| require x}
 include WEBrick
 Archive = ZArchive::Reader.new(ARGV[0])
 template = Archive.get('__Zdump_Template__')
